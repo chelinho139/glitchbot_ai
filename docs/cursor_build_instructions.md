@@ -2,11 +2,12 @@
 
 > **READ THESE FIRST (MANDATORY)**
 >
-> 1) `/src/docs/overview_game_node_glitchbot_research.md` — the complete research dossier for architecture, flows, cadence, persistence, and error handling. **You must follow it.**
-> 2) **SDK Docs:** https://github.com/game-by-virtuals/game-node — read the README and examples. **The implementation MUST use the Virtuals G.A.M.E engine (`@virtuals-protocol/game`).** Do **not** substitute other agent frameworks.
-> 3) **Bot Prompt:** `/src/docs/glitchbot_prompt.md` — this is the **single source of truth** for GlitchBot’s persona, goals, constraints, and examples. **Use this exact prompt** for the Agent/Worker models.
+> 1. `/src/docs/overview_game_node_glitchbot_research.md` — the complete research dossier for architecture, flows, cadence, persistence, and error handling. **You must follow it.**
+> 2. **SDK Docs:** https://github.com/game-by-virtuals/game-node — read the README and examples. **The implementation MUST use the Virtuals G.A.M.E engine (`@virtuals-protocol/game`).** Do **not** substitute other agent frameworks.
+> 3. **Bot Prompt:** `/src/docs/glitchbot_prompt.md` — this is the **single source of truth** for GlitchBot's persona, goals, constraints, and examples. **Use this exact prompt** for the Agent/Worker models.
+> 4. **Twitter Node:** https://github.com/game-by-virtuals/game-twitter-node — **Use this simpler module** for Twitter API access instead of the complex plugin.
 
-**Goal:** Ship a production Twitter/X agent (GlitchBot) using the **Virtuals G.A.M.E engine** and the **official Twitter plugin**.
+**Goal:** Ship a production Twitter/X agent (GlitchBot) using the **Virtuals G.A.M.E engine** and the **simpler game-twitter-node module**.
 
 **LLM role:** You are the coding assistant inside Cursor. Follow these instructions precisely, generate code and diffs, and ask for missing secrets if needed.
 
@@ -15,16 +16,18 @@
 ## 1) Non-Negotiables
 
 - ✅ **Use the G.A.M.E engine** (`@virtuals-protocol/game`) for the agent loop (HLP/LLP). Do **not** implement a custom planner or use LangChain/AutoGPT/etc.
-- ✅ **Use the official Twitter plugin** (`@virtuals-protocol/game-twitter-plugin`) for actions.
+- ✅ **Use the simpler game-twitter-node** (`@virtuals-protocol/game-twitter-node`) for Twitter API access. Do **not** use the complex Twitter plugin.
+- ✅ **Use TIMELINE instead of SEARCH** - Fetch from home timeline which already includes smart people being followed and good algorithm.
 - ✅ **Use the bot prompt from** `/src/docs/glitchbot_prompt.md`. Do **not** invent a new prompt.
 - ✅ Conform to the design and behavior in `/src/docs/overview_game_node_glitchbot_research.md`.
+- ✅ **Implement in STAGES with testing** - Each stage must be tested before moving to the next.
 
 ---
 
 ## 2) Functional Requirements
 
-1. **Actions permitted:** reply to mentions, quote-tweet high-signal posts, like tweets.  
-   - No original tweets; no follows; no deletions.  
+1. **Actions permitted:** reply to mentions, quote-tweet high-signal posts, like tweets.
+   - No original tweets; no follows; no deletions.
    - May send DMs to owner `@lemoncheli` for help or alerts.
 2. **Language & Style:** English-only; friendly, techy, slightly dark; no hashtags; ≤1 emoji optional.
 3. **Cadence & Timing:** (enforce per research dossier)
@@ -32,10 +35,11 @@
    - Replies to mentions: at most **one per minute**.
    - **Sleep** between **02:00–10:00 UTC-3** (05:00–13:00 UTC). No posting in this window.
 4. **Topic Focus:** crypto, AI, frontier tech, tech news, notable launches (curated feed).
-5. **Interesting Tweet Criteria (priority):** keywords → rapid engagement → author followers > 5k → positive/inquisitive sentiment.
-6. **Persistence:** Local DB for engaged IDs, cadence timestamps, and candidate backlog.
-7. **Safety:** Skip toxic/hateful content; mild profanity allowed; when in doubt, skip.
-8. **Errors:** On repeated failures or rate-limits, DM owner with a short diagnostic and back off 30 minutes.
+5. **Content Discovery:** **Use HOME TIMELINE** - Fetch from timeline which already includes smart people being followed and good algorithm. Do **not** use search.
+6. **Interesting Tweet Criteria (priority):** keywords → rapid engagement → author followers > 5k → positive/inquisitive sentiment.
+7. **Persistence:** Local DB for engaged IDs, cadence timestamps, and candidate backlog.
+8. **Safety:** Skip toxic/hateful content; mild profanity allowed; when in doubt, skip.
+9. **Errors:** On repeated failures or rate-limits, DM owner with a short diagnostic and back off 30 minutes.
 
 ---
 
@@ -45,10 +49,10 @@
 /src
   /agents/glitchbot
     index.ts            # bootstrap + run loop (G.A.M.E engine)
-    workers.twitter.ts  # Twitter worker setup, custom GameFunctions if needed
-    prompts.ts          # load prompt text from /src/docs/glitchbot_prompt.md if embedded
+    workers.twitter.ts  # Twitter worker setup with game-twitter-node
+    prompts.ts          # load prompt text from /src/docs/glitchbot_prompt.md
   /lib
-    db.ts               # SQLite wrapper (better-sqlite3 or Prisma)
+    db.ts               # SQLite wrapper (better-sqlite3)
     ranking.ts          # scoring functions per requirements
     cadence.ts          # sleep window + cadence guards
     log.ts              # structured logger
@@ -56,6 +60,14 @@
   overview_game_node_glitchbot_research.md
   glitchbot_prompt.md
   cursor_build_instructions.md   # this file
+  stage-requirements/            # individual stage requirements
+    stage-1-setup.md
+    stage-2-twitter-auth.md
+    stage-3-timeline-fetch.md
+    stage-4-database.md
+    stage-5-quote-tweets.md
+    stage-6-replies.md
+    stage-7-integration.md
 ```
 
 ---
@@ -64,12 +76,12 @@
 
 - Runtime: Node 20+, TypeScript
 - Packages:
-  - `@virtuals-protocol/game`   **← REQUIRED (G.A.M.E engine)**
-  - `@virtuals-protocol/game-twitter-plugin`
+  - `@virtuals-protocol/game` **← REQUIRED (G.A.M.E engine)**
+  - `@virtuals-protocol/game-twitter-node` **← REQUIRED (simpler Twitter module)**
   - `zod` (if needed for arg validation)
-  - `better-sqlite3` *(or)* `prisma` + `@prisma/client`
+  - `better-sqlite3`
   - `dotenv`
-  - `pino` (logger)  
+  - `pino` (logger)
 - Process: `pm2` (optional) or Docker
 
 ---
@@ -92,119 +104,192 @@ Do **not** commit secrets.
 
 ---
 
-## 6) Implementation Steps (follow the dossier + SDK docs)
+## 6) Implementation Stages (MANDATORY - Test Each Stage)
 
-1. **Scaffold Project**
-   - Initialize TS config, `pnpm` scripts, `.env` loading, and logger.
-   - Create `lib/db.ts` (SQLite). Create tables: `engaged_tweets`, `cadence`, `candidate_tweets`.
-   - Confirm you have read `/src/docs/overview_game_node_glitchbot_research.md` and the SDK README.
+### **STAGE 1: Project Setup & Dependencies**
 
-2. **Wire Twitter Worker (G.A.M.E)**
-   - Create `workers.twitter.ts`: instantiate `GameTwitterClient`, then `new TwitterPlugin(...).getWorker()`.
-   - If missing primitives, add **custom GameFunctions** (e.g., `fetchMentions`, `sendDM`).
+**File:** `docs/stage-requirements/stage-1-setup.md`
 
-3. **Agent Bootstrap (G.A.M.E)**  
-   - In `index.ts`, construct `GameAgent` with:
-     - `name: "GlitchBot"`
-     - `goal` and `description` from `/src/docs/glitchbot_prompt.md`.
-     - `workers: [twitterWorker]`.
-   - `await agent.init()` then `await agent.run(60, { verbose: true })`.
+- Initialize TypeScript project
+- Install dependencies
+- Set up basic project structure
+- Create `.env` template
+- **TEST:** `npm run build` should work without errors
 
-4. **Cadence & Sleep Guards**
-   - Implement `canQuoteNow`, `canReplyNow`, and `isSleepTime` in `cadence.ts`.
-   - Before calling `quoteTweet` or `replyTweet`, enforce guards and update timestamps in `cadence` table.
+### **STAGE 2: Twitter Authentication**
 
-5. **Mentions Reply Loop**
-   - Search mentions (`searchTweets("@glitchbot_ai")` or a mentions endpoint).
-   - For each unseen tweet: generate short acknowledgement; `replyTweet`; optional `likeTweet`; store `tweet_id` in `engaged_tweets`.
-   - Wait ≥60s between replies.
+**File:** `docs/stage-requirements/stage-2-twitter-auth.md`
 
-6. **Quote-Tweet Loop**
-   - If `canQuoteNow()` and not sleep time: discover candidates (timeline/keyword search).
-   - Score with `ranking.ts` per criteria; skip low score; ensure not duplicate; `quoteTweet` best candidate; record `last_quote_ts` and add to `engaged_tweets`.
+- Implement Twitter client using `@virtuals-protocol/game-twitter-node`
+- Test authentication with both auth modes
+- Create simple test script
+- **TEST:** `npm run test-twitter` should authenticate successfully
 
-7. **Error Handling**
-   - Catch 429 + transient errors; exponential backoff with jitter.
-   - On repeated failures: `sendDM("lemoncheli", "Need assistance: <brief>")` then throttle for 30 minutes.
+### **STAGE 3: Timeline Fetching**
 
-8. **Logging & Metrics**
-   - Use `pino` structured logs.
-   - Track counters: replies_sent, quotes_sent, likes_sent, rate_limited_total.
-   - Optional: daily DM summary to owner outside sleep window.
+**File:** `docs/stage-requirements/stage-3-timeline-fetch.md`
 
-9. **Tests (Lightweight)**
-   - Unit test `isSleepTime`, cadence gates, and ranking function.
-   - Dry-run mode: mock Twitter client; verify no duplicate engagements.
+- Implement home timeline fetching (NOT search)
+- Create `fetchHomeTimeline` GameFunction
+- Test timeline data structure
+- **TEST:** Should fetch 20+ tweets from home timeline with user info
 
-10. **Run & Ship**
-    - `pnpm start` to launch the agent.
-    - Optional: PM2 config or Dockerfile; healthcheck endpoint.
+### **STAGE 4: Database Implementation**
+
+**File:** `docs/stage-requirements/stage-4-database.md`
+
+- Implement SQLite database with tables
+- Create memory functions (`storeMemory`, `fetchMemory`)
+- Test database operations
+- **TEST:** Should store/retrieve data without errors
+
+### **STAGE 5: Quote Tweet Functionality**
+
+**File:** `docs/stage-requirements/stage-5-quote-tweets.md`
+
+- Implement `quoteTweet` GameFunction
+- Add tweet scoring/ranking
+- Test quote tweet posting
+- **TEST:** Should post quote tweets successfully
+
+### **STAGE 6: Reply Functionality**
+
+**File:** `docs/stage-requirements/stage-6-replies.md`
+
+- Implement `replyTweet` GameFunction
+- Add mention detection
+- Test reply posting
+- **TEST:** Should reply to mentions successfully
+
+### **STAGE 7: Full Integration**
+
+**File:** `docs/stage-requirements/stage-7-integration.md`
+
+- Integrate all components with G.A.M.E engine
+- Add cadence controls and sleep window
+- Implement error handling
+- **TEST:** Full bot should run without crashes
 
 ---
 
-## 7) Key Code Sketches
+## 7) Key Implementation Details
 
-*(See `/src/docs/overview_game_node_glitchbot_research.md` for additional sketches.)*
+### **Twitter Client Setup (Stage 2)**
 
-### Sleep Window (UTC-3 → UTC)
 ```ts
-export const isSleepTime = (d = new Date()) => {
-  const h = d.getUTCHours(); // UTC-3 sleep 02:00–10:00 -> UTC 05:00–13:00
-  return h >= 5 && h < 13;
-};
+import { TwitterApi } from "@virtuals-protocol/game-twitter-node";
+
+// For Virtuals token
+const twitterClient = new TwitterApi({
+  gameTwitterAccessToken: process.env.GAME_TWITTER_TOKEN,
+});
+
+// For native Twitter credentials
+const twitterClient = new TwitterApi({
+  apiKey: process.env.TWITTER_APP_KEY,
+  apiSecretKey: process.env.TWITTER_APP_SECRET,
+  accessToken: process.env.TWITTER_ACCESS_TOKEN,
+  accessTokenSecret: process.env.TWITTER_ACCESS_SECRET,
+});
 ```
 
-### Quote Cadence
+### **Timeline Fetching (Stage 3)**
+
 ```ts
-export const canQuoteNow = async (db, now = new Date()) => {
-  const r = await db.get('SELECT value FROM cadence WHERE key=?', ['last_quote_ts']);
-  if (!r) return true;
-  return (now.getTime() - new Date(r.value).getTime()) >= 2 * 60 * 60 * 1000;
-};
+// Fetch from HOME TIMELINE (not search)
+const timeline = await twitterClient.v2.homeTimeline({
+  max_results: 20,
+  "tweet.fields": "created_at,author_id,public_metrics,text",
+  "user.fields": "username,name,public_metrics",
+  expansions: "author_id",
+});
 ```
 
-### Mentions Reply
+### **GameFunction Structure**
+
 ```ts
-export async function handleMentions(api, db) {
-  const results = await api.searchTweets('@glitchbot_ai'); // or plugin mentions
-  for (const t of results) {
-    const exists = await db.get('SELECT 1 FROM engaged_tweets WHERE tweet_id=?', [t.id]);
-    if (exists) continue;
-    const text = `Interesting ${t.author_handle}, thanks for sharing.`;
-    await api.replyTweet(t.id, text);
-    await api.likeTweet(t.id).catch(()=>{});
-    await db.run('INSERT INTO engaged_tweets(tweet_id, action) VALUES(?, ?)', [t.id, 'reply']);
-    await new Promise(r => setTimeout(r, 60_000));
-  }
-}
+const fetchHomeTimeline = new GameFunction({
+  name: "fetchHomeTimeline",
+  description: "Fetch tweets from home timeline to find interesting content",
+  args: [{ name: "limit", description: "Number of tweets to fetch" }] as const,
+  executable: async (args, logger) => {
+    // Implementation here
+  },
+});
 ```
 
 ---
 
-## 8) Deliverables (Definition of Done)
+## 8) Testing Requirements
 
-- Source under `/src` with modules above.
-- SQLite migrations & seed scripts (or Prisma schema).
-- `.env.example` documenting required variables.
-- Working `pnpm start` that launches the **G.A.M.E** agent.
-- Demonstrated behavior:
-  - No posting during 05:00–13:00 UTC.
-  - Replies to new mentions (≤1/min).
-  - Quotes ≤1 per 2h with ranking and duplication guard.
-  - On repeated errors, DM owner and back off.
-- Logs show structured outputs and counters.
+### **Each Stage Must Include:**
+
+1. **Unit Tests** - Test individual functions
+2. **Integration Tests** - Test component interactions
+3. **Manual Tests** - Verify actual Twitter API calls
+4. **Error Tests** - Test error handling
+
+### **Test Commands:**
+
+```bash
+# Stage 1
+npm run build
+
+# Stage 2
+npm run test-twitter
+
+# Stage 3
+npm run test-timeline
+
+# Stage 4
+npm run test-db
+
+# Stage 5
+npm run test-quote
+
+# Stage 6
+npm run test-reply
+
+# Stage 7
+npm start
+```
 
 ---
 
-## 9) Notes to Cursor
+## 9) Deliverables (Definition of Done)
 
-- Read and adhere to `/src/docs/overview_game_node_glitchbot_research.md` and the SDK README at https://github.com/game-by-virtuals/game-node.
-- Always use the **G.A.M.E engine** with `GameAgent` + `GameWorker` + `GameFunctions`.
-- Use the **exact prompt** at `/src/docs/glitchbot_prompt.md`.
-- Ask for any missing context (e.g., exact keyword list).
-- Propose diffs rather than full rewrites; keep helpers small and testable.
-- Do not add unapproved capabilities (follow/delete/original tweets).
+### **Per Stage:**
+
+- ✅ Source code for that stage
+- ✅ Tests passing
+- ✅ Documentation updated
+- ✅ No TypeScript errors
+- ✅ Manual testing completed
+
+### **Final Deliverables:**
+
+- ✅ Source under `/src` with all modules
+- ✅ SQLite database with proper schema
+- ✅ `.env.example` with all required variables
+- ✅ Working `npm start` that launches the G.A.M.E agent
+- ✅ All stages tested and working
+- ✅ Bot respects sleep window (05:00–13:00 UTC)
+- ✅ Bot uses home timeline (not search)
+- ✅ Bot follows cadence rules
+- ✅ Error handling and DM alerts working
 
 ---
 
-*End of build instructions.*
+## 10) Notes to Cursor
+
+- **Follow stages exactly** - Do not skip stages or combine them
+- **Test each stage** before moving to the next
+- **Use home timeline** - The timeline already includes smart people and good algorithm
+- **Use game-twitter-node** - Simpler module, not the complex plugin
+- **Ask for missing context** if needed
+- **Propose diffs** rather than full rewrites
+- **Do not add unapproved capabilities** (follow/delete/original tweets)
+
+---
+
+_End of build instructions._

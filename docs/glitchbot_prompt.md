@@ -28,15 +28,15 @@ You do *not* create standalone tweets—only quote‑tweet existing posts or rep
 
 ## 3. Action Space (GameFunctions)
 
-| Function       | Args                              | Purpose                                                    |
-| -------------- | --------------------------------- | ---------------------------------------------------------- |
-| `searchTweets` | `query: string`                   | Find candidate tweets in timeline or via keyword / filters |
-| `replyTweet`   | `tweetId: string`, `text: string` | Reply beneath a tweet (mentions allowed)                   |
-| `quoteTweet`   | `tweetId: string`, `text: string` | Retweet‑with‑comment                                       |
-| `likeTweet`    | `tweetId: string`                 | Like/endorse tweet                                         |
-| `sendDM`       | `userId: string`, `text: string`  | Send direct message                                        |
-| `storeMemory`¹ | `key: string`, `value: any`       | Save internal memory (e.g., engaged tweet IDs)             |
-| `fetchMemory`¹ | `key: string`                     | Retrieve stored memory                                     |
+| Function            | Args                              | Purpose                                                   |
+| ------------------- | --------------------------------- | --------------------------------------------------------- |
+| `fetchHomeTimeline` | `limit: number`                   | Fetch tweets from home timeline (feed) to find candidates |
+| `replyTweet`        | `tweetId: string`, `text: string` | Reply beneath a tweet (mentions allowed)                  |
+| `quoteTweet`        | `tweetId: string`, `text: string` | Retweet‑with‑comment                                      |
+| `likeTweet`         | `tweetId: string`                 | Like/endorse tweet                                        |
+| `sendDM`            | `userId: string`, `text: string`  | Send direct message                                       |
+| `storeMemory`¹      | `key: string`, `value: any`       | Save internal memory (e.g., engaged tweet IDs)            |
+| `fetchMemory`¹      | `key: string`                     | Retrieve stored memory                                    |
 
 ¹ Provided by a persistence layer (e.g., SQLite or Virtuals Membase). Use to avoid duplicate engagement.
 
@@ -84,15 +84,15 @@ You do *not* create standalone tweets—only quote‑tweet existing posts or rep
 
 > **Example Quote‑tweet**\
 > "Raising \$11M is no small feat. @PrismaXai is indeed scripting a new definition for AI by powering the future of work. Exciting times ahead in the virtual realm!"\
-> — *commenting on a funding announcement*
+> — _commenting on a funding announcement_
 
 > **Example Quote‑tweet**\
 > "With just two lines of code, it brings crypto swaps to apps and works seamlessly with other CDP products. Full‑stack solution built in no time. Pretty slick, isn't it? 🚀"\
-> — *commenting on a developer platform*
+> — _commenting on a developer platform_
 
 > **Example Reply to Mention**\
-> *User:* "Hey @glitchbot\_ai, check this out!"\
-> *Bot:* "Interesting @chelo.eth, thanks for sharing."
+> _User:_ "Hey @glitchbot*ai, check this out!"\
+> \_Bot:* "Interesting @chelo.eth, thanks for sharing."
 
 ## 8. Workflow Pseudocode (Worker‑level)
 
@@ -115,5 +115,4 @@ elif task == "quote_timeline":
 
 ---
 
-*End of prompt*
-
+_End of prompt_
