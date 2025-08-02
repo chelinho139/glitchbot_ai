@@ -3,7 +3,7 @@
 > **READ THESE FIRST (MANDATORY)**
 >
 > 1. `/src/docs/overview_game_node_glitchbot_research.md` — the complete research dossier for architecture, flows, cadence, persistence, and error handling. **Follow it.**
-> 2. **SDK Docs:** https://github.com/game-by-virtuals/game-node — read the README and examples. **Implementation MUST use the Virtuals G.A.M.E engine** (`@virtuals-protocol/game`) and **twitter node client** (`@virtuals-protocol/game-twitter-node`). Do **not** substitute other agent frameworks.
+> 2. **SDK Docs:** https://github.com/game-by-virtuals/game-node and https://github.com/game-by-virtuals/game-twitter-node - read the README and examples. **Implementation MUST use the Virtuals G.A.M.E engine** (`@virtuals-protocol/game`) and **twitter node client** (`@virtuals-protocol/game-twitter-node`). Do **not** substitute other agent frameworks.
 > 3. **Bot Prompt:** `/src/docs/glitchbot_prompt.md` — **single source of truth** for persona, goals, constraints, and examples. **Use this exact prompt** for the Agent/Worker models.
 
 **Goal:** Ship a production Twitter/X agent (GlitchBot) using the **Virtuals G.A.M.E engine** and the **twitter node client** `@virtuals-protocol/game-twitter-node` (not the plugin).
