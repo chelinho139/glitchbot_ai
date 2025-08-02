@@ -1,0 +1,35 @@
+{
+  "name": "glitchbot-ai",
+  "version": "1.0.0",
+  "description": "GlitchBot - An autonomous Twitter agent built with Virtuals G.A.M.E engine",
+
+  "main": "dist/index.js",
+  "scripts": {
+    "dev": "ts-node src/index.ts",
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "test": "echo \"Stage 1 foundation test - building and starting\" && npm run build && echo \"Build successful! Application would start here.\"",
+    "test:run": "npm run build && node dist/index.js"
+  },
+  "dependencies": {
+    "@virtuals-protocol/game": "^0.1.14",
+    "@virtuals-protocol/game-twitter-node": "^0.1.4",
+    "better-sqlite3": "^9.2.2",
+    "dotenv": "^16.3.1",
+    "pino": "^8.17.2",
+    "pino-pretty": "^10.3.1",
+    "zod": "^3.22.4"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "^7.6.8",
+    "@types/node": "^20.10.6",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.3.3"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "author": "",
+  "license": "MIT"
+}
+ 
