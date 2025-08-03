@@ -15,7 +15,9 @@
     "test:workers": "npx ts-node tests/test-runner.ts workers",
     "test:integration": "npx ts-node tests/test-runner.ts integration",
     "test:run": "npm run build && node dist/index.js",
-    "demo:fetch-mentions": "npx ts-node scripts/fetch-mentions-demo.js"
+    "demo:fetch-mentions": "npx ts-node scripts/fetch-mentions-demo.js",
+    "debug:rate-limits": "npx ts-node scripts/debug-rate-limits.js",
+    "test:rate-limiter": "npx ts-node scripts/test-rate-limiter.js"
   },
   "dependencies": {
     "@virtuals-protocol/game": "^0.1.14",

@@ -13,16 +13,17 @@ import { GameWorker } from "@virtuals-protocol/game";
 import logger from "../../lib/log";
 import GlitchBotDB from "../../lib/db";
 
-// TODO: Import Level 3 GameFunctions when implementation is ready
-// import { fetchMentionsFunction } from "../functions/discovery/fetch-mentions";
-// import { searchTweetsFunction } from "../functions/discovery/search-tweets";
-// import { fetchTimelineFunction } from "../functions/discovery/fetch-timeline";
-// import { replyToTweetFunction } from "../functions/engagement/reply-to-tweet";
-// import { quoteTweetFunction } from "../functions/engagement/quote-tweet";
-// import { likeTweetFunction } from "../functions/engagement/like-tweet";
-// import { sendDMFunction } from "../functions/utilities/send-dm";
-// import { scoreTweetFunction } from "../functions/utilities/score-tweet";
-// import { checkCadenceFunction } from "../functions/utilities/check-cadence";
+// TODO: Future implementation - add Level 3 GameFunctions imports
+// These will be added as each function is implemented and tested:
+// - fetchMentionsFunction ✅ (implemented)
+// - searchTweetsFunction
+// - fetchTimelineFunction
+// - replyToTweetFunction
+// - quoteTweetFunction
+// - likeTweetFunction
+// - sendDMFunction
+// - scoreTweetFunction
+// - checkCadenceFunction
 
 export class TwitterWorkerManager {
   private worker: GameWorker | null = null;

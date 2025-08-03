@@ -2,14 +2,19 @@
 //
 // Atomic function to fetch recent mentions from Twitter API v2
 // This is the lowest level - just executes a specific action
+//
+// RATE LIMIT OPTIMIZATION: Uses centralized user ID caching via RateLimitedTwitterClient
+// - Automatically handles caching and rate limiting for user ID retrieval
+// - Tracks both get_user and fetch_mentions rate limit usage
+// - No duplicate caching logic needed
 
 import {
   GameFunction,
   ExecutableGameFunctionResponse,
   ExecutableGameFunctionStatus,
 } from "@virtuals-protocol/game";
-import { TwitterApi } from "@virtuals-protocol/game-twitter-node";
 import appLogger from "../../../../lib/log";
+import { createRateLimitedTwitterClient } from "../../../../lib/rate-limited-twitter-client";
 
 // Define the structure for Twitter user/author data
 export interface TwitterAuthor {
@@ -73,7 +78,7 @@ export interface FetchMentionsResult {
 export const fetchMentionsFunction = new GameFunction({
   name: "fetch_mentions",
   description:
-    "Fetch recent mentions from Twitter API v2 with comprehensive error handling and rate limiting",
+    "Fetch recent mentions from Twitter API v2 with comprehensive error handling, rate limiting, and automatic user ID caching",
   args: [
     {
       name: "since_id",
@@ -115,67 +120,26 @@ export const fetchMentionsFunction = new GameFunction({
         );
       }
 
-      const twitterClient = new TwitterApi({
+      const twitterClient = createRateLimitedTwitterClient({
         gameTwitterAccessToken: gameToken,
+        workerId: "mentions-worker",
+        defaultPriority: "high",
       });
       appLogger.debug(
         "fetch_mentions: Twitter client created successfully with GAME token"
       );
 
-      // Get current user ID for mentions timeline
-      let currentUser;
-      try {
-        currentUser = await twitterClient.v2.me();
-        appLogger.debug(
-          {
-            userId: currentUser.data.id,
-            username: currentUser.data.username,
-          },
-          "fetch_mentions: Current user retrieved"
-        );
-      } catch (userError: any) {
-        appLogger.error(
-          { error: userError.message },
-          "fetch_mentions: Failed to get current user"
-        );
-        return new ExecutableGameFunctionResponse(
-          ExecutableGameFunctionStatus.Failed,
-          `Failed to authenticate: ${userError.message}`
-        );
-      }
-
-      // Make the API call for mentions using userMentionTimeline
+      // Make the API call using composite method (tracks both get_user and fetch_mentions rate limits)
       let apiResponse;
       try {
-        const timelineParams: any = {
+        const mentionsOptions: any = {
           max_results: maxResults,
-          expansions: ["author_id", "referenced_tweets.id"],
-          "tweet.fields": ["created_at", "public_metrics", "referenced_tweets"],
-          "user.fields": [
-            "id",
-            "username",
-            "name",
-            "description",
-            "location",
-            "profile_image_url",
-            "url",
-            "verified",
-            "verified_type",
-            "protected",
-            "created_at",
-            "public_metrics",
-            "pinned_tweet_id",
-          ],
         };
-        if (args.since_id) timelineParams.since_id = args.since_id;
+        if (args.since_id) {
+          mentionsOptions.since_id = args.since_id;
+        }
 
-        apiResponse = await twitterClient.v2.userMentionTimeline(
-          currentUser.data.id,
-          timelineParams
-        );
-        appLogger.debug(
-          "fetch_mentions: Used userMentionTimeline (primary method)"
-        );
+        apiResponse = await twitterClient.fetchUserMentions(mentionsOptions);
 
         appLogger.info(
           {
@@ -184,7 +148,7 @@ export const fetchMentionsFunction = new GameFunction({
             oldest_id: apiResponse.data.meta?.oldest_id,
             rate_limit_remaining: apiResponse.rateLimit?.remaining,
           },
-          "fetch_mentions: Real API call completed successfully"
+          "fetch_mentions: Composite API call completed successfully (dual rate limit tracking)"
         );
       } catch (apiError: any) {
         // Handle Twitter API errors

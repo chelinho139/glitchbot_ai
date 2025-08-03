@@ -137,4 +137,11 @@ dist
 # Vite logs files
 vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
+
+# SQLite database files (runtime data)
+*.db
+*.db-shm
+*.db-wal
+
+# macOS system files
 .DS_Store

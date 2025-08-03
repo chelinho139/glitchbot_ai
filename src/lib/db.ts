@@ -28,6 +28,11 @@ class GlitchBotDB {
     logger.info({ dbPath }, "Database initialized");
   }
 
+  // Public getter for database access (needed for specialized queries)
+  get database(): Database.Database {
+    return this.db;
+  }
+
   private init(): void {
     // Enable WAL mode for better concurrency
     this.db.pragma("journal_mode = WAL");
