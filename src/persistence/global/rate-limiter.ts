@@ -54,9 +54,9 @@ export class GlobalRateLimiter {
 
     this._configs.set("get_user", {
       endpoint: "get_user",
-      requests_per_15min: 1, // Conservative: spread 25/day across 15min windows
-      requests_per_hour: 1, // Conservative: spread 25/day across hour windows
-      requests_per_day: 25, // OFFICIAL FREE TIER: 25 requests per 24 hours
+      requests_per_15min: 1, // Match fetch_mentions: 1 request per 15 minutes
+      requests_per_hour: 4, // Match fetch_mentions: 4 x 15min windows per hour
+      requests_per_day: 96, // Match fetch_mentions: much more relaxed than 25/day
       worker_fair_share: true,
     });
 

@@ -26,6 +26,7 @@
     "queue:status": "node scripts/queue-status.js",
     "validate": "npm run build && node scripts/validate-system.js",
     "init:checkpoint": "npm run build && node scripts/init-mention-checkpoint.js",
+    "clear:rates": "npm run build && node scripts/clear-rate-limits.js",
     "worker:mentions": "npm run build && node -e \"const {DatabaseManager} = require('./dist/lib/database-manager'); const GlitchBotDB = require('./dist/lib/db').default; const {MentionsWorker} = require('./dist/workers/twitter/mentions-worker'); const dbManager = new DatabaseManager('./glitchbot.db'); const db = new GlitchBotDB(dbManager); const worker = new MentionsWorker(db); worker.execute().then(() => process.exit(0));\""
   },
   "dependencies": {
