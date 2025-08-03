@@ -1,4 +1,4 @@
-import GlitchBotDB from "../../lib/db";
+import { DatabaseManager, databaseManager } from "../../lib/database-manager";
 import appLogger from "../../lib/log";
 
 export interface RateLimitWindow {
@@ -18,64 +18,23 @@ export interface RateLimitConfig {
 }
 
 export class GlobalRateLimiter {
-  private db: GlitchBotDB;
+  private dbManager: DatabaseManager;
   private _configs: Map<string, RateLimitConfig> = new Map();
 
-  constructor() {
-    this.db = new GlitchBotDB();
+  constructor(dbManager?: DatabaseManager) {
+    this.dbManager = dbManager || databaseManager;
     this.initializeRateLimits();
-    this.initializeDatabase();
+    // Database schema already created by DatabaseManager
   }
 
   /**
    * Get database instance for direct access
    */
   get db_instance(): any {
-    return this.db.database;
+    return this.dbManager.database;
   }
 
-  /**
-   * Initialize database schema for rate limiting
-   */
-  private initializeDatabase(): void {
-    // Create table with original schema first (for compatibility)
-    this.db.database.exec(`
-      CREATE TABLE IF NOT EXISTS rate_limits (
-        endpoint TEXT NOT NULL,
-        window_type TEXT NOT NULL,
-        window_start INTEGER NOT NULL,
-        requests_used INTEGER DEFAULT 0,
-        worker_usage TEXT DEFAULT '{}',
-        PRIMARY KEY (endpoint, window_type, window_start)
-      );
-    `);
-
-    // Add new column if it doesn't exist (migration for existing databases)
-    try {
-      this.db.database.exec(
-        `ALTER TABLE rate_limits ADD COLUMN twitter_reset_time INTEGER;`
-      );
-      appLogger.info("Added twitter_reset_time column to rate_limits table");
-    } catch (error: any) {
-      // Column already exists or other error - this is fine
-      if (!error.message.includes("duplicate column name")) {
-        appLogger.debug(
-          "twitter_reset_time column already exists or migration not needed"
-        );
-      }
-    }
-
-    // Create indexes
-    this.db.database.exec(`
-      CREATE INDEX IF NOT EXISTS idx_rate_limits_window 
-        ON rate_limits(endpoint, window_type, window_start);
-        
-      CREATE INDEX IF NOT EXISTS idx_rate_limits_reset
-        ON rate_limits(endpoint, window_type, twitter_reset_time);
-    `);
-
-    appLogger.info("Rate limiter database schema initialized");
-  }
+  // Database schema initialization now handled by DatabaseManager
 
   /**
    * Initialize Twitter API rate limits
@@ -182,7 +141,7 @@ export class GlobalRateLimiter {
     workerUsage: Map<string, number>;
     twitterResetTime?: number;
   } {
-    const stmt = this.db.database.prepare(`
+    const stmt = this.dbManager.database.prepare(`
       SELECT requests_used, worker_usage, twitter_reset_time 
       FROM rate_limits 
       WHERE endpoint = ? AND window_type = ? AND window_start = ?
@@ -283,7 +242,7 @@ export class GlobalRateLimiter {
       (newWorkerUsage.get(workerId) || 0) + increment
     );
 
-    const stmt = this.db.database.prepare(`
+    const stmt = this.dbManager.database.prepare(`
       INSERT OR REPLACE INTO rate_limits 
       (endpoint, window_type, window_start, requests_used, worker_usage, twitter_reset_time)
       VALUES (?, ?, ?, ?, ?, ?)
@@ -639,7 +598,7 @@ export class GlobalRateLimiter {
   async cleanup(): Promise<void> {
     const cutoff = Date.now() - 7 * 24 * 60 * 60 * 1000; // 7 days ago
 
-    const stmt = this.db.database.prepare(`
+    const stmt = this.dbManager.database.prepare(`
       DELETE FROM rate_limits 
       WHERE window_start < ?
     `);
@@ -660,7 +619,7 @@ export class GlobalRateLimiter {
     let result;
 
     if (endpoint) {
-      stmt = this.db.database.prepare(
+      stmt = this.dbManager.database.prepare(
         `DELETE FROM rate_limits WHERE endpoint = ?`
       );
       result = stmt.run(endpoint);
@@ -669,7 +628,7 @@ export class GlobalRateLimiter {
         "Rate limits reset for specific endpoint (TESTING ONLY)"
       );
     } else {
-      stmt = this.db.database.prepare(`DELETE FROM rate_limits`);
+      stmt = this.dbManager.database.prepare(`DELETE FROM rate_limits`);
       result = stmt.run();
       appLogger.warn(
         { deleted_records: result.changes },
@@ -688,7 +647,7 @@ export class GlobalRateLimiter {
     newestWindow: string;
     cacheHits: number;
   }> {
-    const stmt = this.db.database.prepare(`
+    const stmt = this.dbManager.database.prepare(`
       SELECT 
         COUNT(DISTINCT endpoint) as endpoints,
         SUM(requests_used) as total_usage,

@@ -290,6 +290,84 @@ NODE_ENV=production
 - Worker performance degradation
 - Database size and performance issues
 
+## 🛠️ Database Management & Monitoring
+
+### **📊 Database Inspection Tools**
+
+Comprehensive tools for monitoring the mention queue system and database health:
+
+#### **Complete Database Inspector**
+
+```bash
+npm run db:inspect
+```
+
+- Shows all database tables with schemas and row counts
+- Special formatting for queue-related tables (`pending_mentions`, `mention_state`, etc.)
+- Database file information and comprehensive statistics
+- Queue analytics and system health overview
+
+#### **Quick Queue Status Check**
+
+```bash
+npm run queue:status
+```
+
+- Concise queue statistics and processing status
+- Rate limit usage across all endpoints
+- Recent activity summary and trends
+- Pending mentions organized by priority
+
+### **🔧 Database Management Commands**
+
+#### **Backup Database**
+
+```bash
+npm run db:backup
+```
+
+**Features:**
+
+- Creates timestamped backups in `./backups/` directory
+- Generates both binary (`.db`) and SQL dump (`.sql`) formats
+- Shows backup history and automatically cleans up old backups
+- Maintains last 10 backups automatically
+
+#### **Reset Database (Development Only)**
+
+```bash
+npm run db:reset          # Interactive reset with confirmation
+npm run db:reset:force    # Force reset for scripts (no confirmation)
+```
+
+**Safety Features:**
+
+- ⚠️ **Production Protection**: Automatically blocked in production environments
+- 💾 **Auto-Backup**: Creates backup before reset
+- 🔨 **Clean Rebuild**: Clears `dist/` and rebuilds fresh schema
+- ✅ **Verification**: Confirms all tables created successfully
+
+### **📖 Documentation**
+
+**Comprehensive Database Documentation:**
+
+- **[Database Schema Guide](./docs/database-schema.md)** - Complete schema reference, monitoring queries, troubleshooting procedures
+- **[Implementation Guide](./docs/implementation-guide.md)** - Development roadmap, testing procedures, success criteria
+
+### **🔍 Key Monitoring Metrics**
+
+- **Queue Health**: Pending vs completed mention ratios, processing success rates
+- **Processing Performance**: Completion percentage, throughput, retry statistics
+- **Rate Limits**: API usage across different endpoints and time windows
+- **System State**: Checkpoint consistency, worker activity, error patterns
+- **Data Integrity**: Duplicate detection, retry logic, queue persistence
+
+### **🚨 Operational Procedures**
+
+- **Daily Health Check**: `npm run queue:status` - Monitor queue depth and completion rates
+- **Weekly Backup**: `npm run db:backup` - Create safety backups
+- **Troubleshooting**: See [Database Schema docs](./docs/database-schema.md#operational-procedures) for detailed procedures
+
 ## 🔄 Development Roadmap
 
 ### **Current Status: Phase 1 Week 1 Complete ✅**
@@ -311,11 +389,20 @@ NODE_ENV=production
 - [x] **Test Framework** with 7 passing test cases
 - [x] **Real API Integration** with Twitter mentions timeline
 
+**✅ MentionsWorker Queue System (Step 1.2):**
+
+- [x] **Persistent Mention Queue** with zero data loss guarantee
+- [x] **AI-Managed GameFunctions** for autonomous worker decisions
+- [x] **Rate-Limit-Aware Processing** handling 282:1 fetch/reply mismatch
+- [x] **Database Schema** with `pending_mentions` and `mention_state` tables
+- [x] **Complete Workflow** from fetch → store → process → reply → track
+- [x] **Production Testing** with real queue operations and monitoring
+- [x] **Database Inspection Tools** for debugging and monitoring
+
 ### **Next Phase: Complete MentionsWorker Implementation**
 
-- [ ] Step 1.2: Simple acknowledgment responses (`reply_to_tweet`)
-- [ ] Step 1.3: Basic intent recognition
-- [ ] Step 1.4: Simple response handling
+- [ ] Step 1.3: Basic intent recognition and response templates
+- [ ] Step 1.4: Advanced response handling and conversation context
 - [ ] Worker orchestration and coordination
 - [ ] Real-time cross-worker communication
 

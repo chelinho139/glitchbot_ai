@@ -17,7 +17,13 @@
     "test:run": "npm run build && node dist/index.js",
     "demo:fetch-mentions": "npx ts-node scripts/fetch-mentions-demo.js",
     "debug:rate-limits": "npx ts-node scripts/debug-rate-limits.js",
-    "test:rate-limiter": "npx ts-node scripts/test-rate-limiter.js"
+    "test:rate-limiter": "npx ts-node scripts/test-rate-limiter.js",
+    "db:inspect": "node scripts/inspect-database.js",
+    "db:status": "node scripts/queue-status.js",
+    "db:reset": "node scripts/reset-database.js",
+    "db:reset:force": "node scripts/reset-database.js --confirm",
+    "db:backup": "node scripts/backup-database.js",
+    "queue:status": "node scripts/queue-status.js"
   },
   "dependencies": {
     "@virtuals-protocol/game": "^0.1.14",

@@ -1,5 +1,6 @@
 import Database from "better-sqlite3";
 import logger from "./log";
+import { DatabaseManager, databaseManager } from "./database-manager";
 
 export interface EngagedTweet {
   tweet_id: string;
@@ -20,53 +21,24 @@ export interface CandidateTweet {
 }
 
 class GlitchBotDB {
-  private db: Database.Database;
+  private dbManager: DatabaseManager;
 
-  constructor(dbPath: string = "./glitchbot.db") {
-    this.db = new Database(dbPath);
-    this.init();
-    logger.info({ dbPath }, "Database initialized");
+  constructor(dbManager?: DatabaseManager) {
+    // Use provided DatabaseManager or default singleton
+    this.dbManager = dbManager || databaseManager;
+    logger.info("GlitchBotDB initialized with centralized DatabaseManager");
   }
 
   // Public getter for database access (needed for specialized queries)
   get database(): Database.Database {
-    return this.db;
+    return this.dbManager.database;
   }
 
-  private init(): void {
-    // Enable WAL mode for better concurrency
-    this.db.pragma("journal_mode = WAL");
-
-    // Create tables as per the schema in the documentation
-    this.db.exec(`
-      CREATE TABLE IF NOT EXISTS engaged_tweets (
-        tweet_id TEXT PRIMARY KEY,
-        engaged_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        action TEXT CHECK(action IN ('reply','quote','like')) NOT NULL
-      );
-
-      CREATE TABLE IF NOT EXISTS cadence (
-        key TEXT PRIMARY KEY,
-        value TEXT
-      );
-
-      CREATE TABLE IF NOT EXISTS candidate_tweets (
-        tweet_id TEXT PRIMARY KEY,
-        discovered_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        score REAL NOT NULL,
-        reason TEXT
-      );
-
-      CREATE INDEX IF NOT EXISTS idx_candidate_score ON candidate_tweets(score DESC);
-      CREATE INDEX IF NOT EXISTS idx_engaged_at ON engaged_tweets(engaged_at);
-    `);
-
-    logger.info("Database schema initialized");
-  }
+  // Schema initialization now handled by DatabaseManager
 
   // Check if a tweet was already engaged with
   isEngaged(tweetId: string): boolean {
-    const stmt = this.db.prepare(
+    const stmt = this.dbManager.database.prepare(
       "SELECT 1 FROM engaged_tweets WHERE tweet_id = ?"
     );
     return !!stmt.get(tweetId);
@@ -74,7 +46,7 @@ class GlitchBotDB {
 
   // Record engagement with a tweet
   recordEngagement(tweetId: string, action: "reply" | "quote" | "like"): void {
-    const stmt = this.db.prepare(
+    const stmt = this.dbManager.database.prepare(
       "INSERT OR IGNORE INTO engaged_tweets (tweet_id, action) VALUES (?, ?)"
     );
     stmt.run(tweetId, action);
@@ -82,22 +54,26 @@ class GlitchBotDB {
 
   // Get cadence value (e.g., last_quote_ts, last_reply_ts)
   getCadence(key: string): string | null {
-    const stmt = this.db.prepare("SELECT value FROM cadence WHERE key = ?");
+    const stmt = this.dbManager.database.prepare("SELECT value FROM cadence WHERE key = ?");
     const result = stmt.get(key) as CadenceRecord | undefined;
     return result?.value || null;
   }
 
   // Set cadence value
   setCadence(key: string, value: string): void {
-    const stmt = this.db.prepare(
+    const stmt = this.dbManager.database.prepare(
       "INSERT OR REPLACE INTO cadence (key, value) VALUES (?, ?)"
     );
     stmt.run(key, value);
   }
 
+  // Candidate tweet methods commented out until Phase 2 (DiscoveryWorker)
+  // These will be uncommented when we implement the DiscoveryWorker
+
+  /*
   // Add candidate tweet
   addCandidate(tweetId: string, score: number, reason: string): void {
-    const stmt = this.db.prepare(
+    const stmt = this.dbManager.database.prepare(
       "INSERT OR REPLACE INTO candidate_tweets (tweet_id, score, reason) VALUES (?, ?, ?)"
     );
     stmt.run(tweetId, score, reason);
@@ -105,7 +81,7 @@ class GlitchBotDB {
 
   // Get best candidate tweet
   getBestCandidate(): CandidateTweet | null {
-    const stmt = this.db.prepare(`
+    const stmt = this.dbManager.database.prepare(`
       SELECT tweet_id, discovered_at, score, reason 
       FROM candidate_tweets 
       WHERE tweet_id NOT IN (SELECT tweet_id FROM engaged_tweets)
@@ -117,11 +93,12 @@ class GlitchBotDB {
 
   // Remove processed candidate
   removeCandidate(tweetId: string): void {
-    const stmt = this.db.prepare(
+    const stmt = this.dbManager.database.prepare(
       "DELETE FROM candidate_tweets WHERE tweet_id = ?"
     );
     stmt.run(tweetId);
   }
+  */
 
   // Clean old records (older than 7 days)
   cleanup(): void {
@@ -129,25 +106,26 @@ class GlitchBotDB {
       Date.now() - 7 * 24 * 60 * 60 * 1000
     ).toISOString();
 
-    const cleanEngaged = this.db.prepare(
+    const cleanEngaged = this.dbManager.database.prepare(
       "DELETE FROM engaged_tweets WHERE engaged_at < ?"
     );
-    const cleanCandidates = this.db.prepare(
-      "DELETE FROM candidate_tweets WHERE discovered_at < ?"
-    );
+    // cleanCandidates will be uncommented in Phase 2
+    // const cleanCandidates = this.dbManager.database.prepare(
+    //   "DELETE FROM candidate_tweets WHERE discovered_at < ?"
+    // );
 
     const engagedDeleted = cleanEngaged.run(weekAgo).changes;
-    const candidatesDeleted = cleanCandidates.run(weekAgo).changes;
+    // const candidatesDeleted = cleanCandidates.run(weekAgo).changes;
 
     logger.info(
-      { engagedDeleted, candidatesDeleted },
-      "Database cleanup completed"
+      { engagedDeleted },
+      "Database cleanup completed (candidate_tweets cleanup will be added in Phase 2)"
     );
   }
 
   // Close database connection
   close(): void {
-    this.db.close();
+    this.dbManager.database.close();
     logger.info("Database connection closed");
   }
 }

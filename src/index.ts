@@ -1,6 +1,7 @@
 import dotenv from "dotenv";
 import logger from "./lib/log";
 import GlitchBotDB from "./lib/db";
+import { DatabaseManager } from "./lib/database-manager";
 import { isSleepTime } from "./lib/cadence";
 
 // Load environment variables
@@ -10,7 +11,11 @@ async function main() {
   logger.info("🤖 GlitchBot starting up...");
 
   // Initialize database
-  const db = new GlitchBotDB(process.env.DATABASE_PATH || "./glitchbot.db");
+  // Create centralized database manager
+  const dbManager = new DatabaseManager(
+    process.env.DATABASE_PATH || "./glitchbot.db"
+  );
+  const db = new GlitchBotDB(dbManager);
 
   // Check required environment variables
   const requiredEnvVars = ["VIRTUALS_API_KEY"];

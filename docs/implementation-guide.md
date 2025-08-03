@@ -34,7 +34,7 @@ This guide provides a systematic, testable approach to implementing GlitchBot's 
 
 #### **📋 MentionsWorker Implementation Checklist**
 
-##### **Week 1: Foundation (Basic Mention Detection & Response)**
+##### **Week 1: Foundation (Mention Queue System & Basic Response)**
 
 **Core GameFunctions to Implement:**
 
@@ -53,12 +53,37 @@ This guide provides a systematic, testable approach to implementing GlitchBot's 
   - [x] **BONUS**: Enterprise-grade automatic rate limiting system
   - [x] **BONUS**: Comprehensive test framework with 7 passing tests
 
-- [ ] **Step 1.2**: Simple acknowledgment responses
+- [ ] **Step 1.2**: Persistent Mention Queue & Basic Responses
 
-  - [ ] Implement `reply_to_tweet` GameFunction
-  - [ ] Add basic response templates
-  - [ ] Add duplicate detection (don't reply twice to same mention)
-  - [ ] Test response posting with test account
+  **Why Queue System:** With rate limits allowing 96 mention fetches/day but only 17 replies/day, we need persistent storage to prevent mention loss. This ensures zero data loss and enables intelligent prioritization.
+
+  **Database Schema Updates:**
+
+  - [ ] Add `pending_mentions` table with mention storage
+  - [ ] Add `mention_state` table for checkpoint tracking
+  - [ ] Test database schema migration
+
+  **Core GameFunctions to Implement:**
+
+  - [ ] `store_pending_mentions` - Store fetched mentions safely
+  - [ ] `get_processable_mentions` - Get rate-limit-aware mention batch
+  - [ ] `reply_to_tweet` - Post replies to mentions
+  - [ ] `mark_mention_processed` - Mark mentions as completed
+  - [ ] `update_mention_checkpoint` - Update since_id safely
+
+  **AI Worker Logic:**
+
+  - [ ] Update MentionsWorker.execute() for queue-based processing
+  - [ ] Add intelligent mention prioritization logic
+  - [ ] Add basic response templates and generation
+  - [ ] Add error handling for partial processing failures
+
+  **Testing:**
+
+  - [ ] Test mention storage and retrieval
+  - [ ] Test rate-limit-aware processing
+  - [ ] Test mention queue persistence across restarts
+  - [ ] Test response posting with real account
 
 - [ ] **Step 1.3**: Basic intent recognition
 
@@ -67,26 +92,34 @@ This guide provides a systematic, testable approach to implementing GlitchBot's 
   - [ ] Add confidence scoring for each intent
   - [ ] Test intent recognition with sample mentions
 
-- [ ] **Step 1.4**: Simple response handling
+- [ ] **Step 1.4**: Advanced Response Handling & Context Tracking
   - [ ] Implement different response templates per intent
-  - [ ] Add conversation context tracking (basic)
+  - [ ] Add conversation context tracking (enhanced for queue system)
+  - [ ] Add mention priority scoring and queue ordering
   - [ ] Add escalation mechanism for unknown intents
-  - [ ] Test end-to-end mention → response flow
+  - [ ] Add queue analytics and monitoring
+  - [ ] Test end-to-end mention → queue → response flow
 
 **Testing Checklist for Week 1:**
 
 - [ ] **Unit Tests:**
 
   - [ ] `fetch_mentions` returns correct data structure
+  - [ ] `store_pending_mentions` saves all mentions correctly
+  - [ ] `get_processable_mentions` respects rate limits
   - [ ] `reply_to_tweet` posts successfully
+  - [ ] `mark_mention_processed` updates database correctly
   - [ ] Intent recognition correctly classifies sample mentions
   - [ ] Error handling works for API failures
 
 - [ ] **Integration Tests:**
 
   - [ ] Complete mention → response workflow
+  - [ ] Mention queue survives worker restarts
+  - [ ] No mention loss during rate limit failures
   - [ ] Rate limit handling works correctly
   - [ ] Duplicate detection prevents double replies
+  - [ ] Database performance under load (100+ mentions)
   - [ ] Logging provides useful debugging info
 
 - [ ] **Manual Tests:**
@@ -98,10 +131,14 @@ This guide provides a systematic, testable approach to implementing GlitchBot's 
 **Success Criteria for Week 1:**
 
 - ✅ Responds to mentions within 5 minutes
+- ✅ Zero mention loss even during rate limit failures
+- ✅ Mention queue processes in priority order
+- ✅ System recovers gracefully from crashes/restarts
 - ✅ Handles different intent types with appropriate responses
 - ✅ No duplicate responses to same mention
 - ✅ Graceful error handling and logging
 - ✅ Rate limit compliance
+- ✅ Database handles 500+ mentions without performance issues
 
 ## 🛡️ **BONUS: Enterprise Rate Limiting System Implemented**
 
@@ -150,6 +187,8 @@ npm run test:fetch-mentions
 ```
 
 This implementation **significantly exceeds** the Week 1 requirements and provides a **solid foundation** for all future development.
+
+**⚡ UPDATED: Week 1 now includes persistent mention queue system to ensure zero data loss during rate limit scenarios. This adds 1-2 days to implementation but provides production-grade reliability from the start.**
 
 ##### **Week 2: Enhancement (Advanced Features & Cross-Worker Delegation)**
 

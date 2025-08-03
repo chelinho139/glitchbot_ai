@@ -3,6 +3,12 @@ import GlitchBotDB from "../../lib/db";
 import fetchMentionsFunction, {
   FetchMentionsResult,
 } from "../../functions/atomic/social/twitter/fetch-mentions";
+import storePendingMentionsFunction from "../../functions/atomic/utilities/store-pending-mentions";
+import getProcessableMentionsFunction from "../../functions/atomic/utilities/get-processable-mentions";
+import replyToTweetFunction from "../../functions/atomic/social/twitter/reply-to-tweet";
+import markMentionProcessedFunction from "../../functions/atomic/utilities/mark-mention-processed";
+import markMentionFailedFunction from "../../functions/atomic/utilities/mark-mention-failed";
+import updateMentionCheckpointFunction from "../../functions/atomic/utilities/update-mention-checkpoint";
 import appLogger from "../../lib/log";
 
 /**
@@ -21,8 +27,16 @@ export class MentionsWorker extends GameWorker {
       id: "mentions_worker",
       name: "Mentions & DM Handler",
       description: "Handles mentions, DMs, and real-time social interactions",
-      // Add the fetch_mentions function to this worker
-      functions: [fetchMentionsFunction],
+      // Add all mention queue functions to this worker
+      functions: [
+        fetchMentionsFunction,
+        storePendingMentionsFunction,
+        getProcessableMentionsFunction,
+        replyToTweetFunction,
+        markMentionProcessedFunction,
+        markMentionFailedFunction,
+        updateMentionCheckpointFunction,
+      ],
       getEnvironment: async () => ({
         platform: "Twitter/X",
         worker_type: "mentions",
@@ -83,72 +97,185 @@ export class MentionsWorker extends GameWorker {
   }
 
   /**
-   * Step 1.1 Implementation: Basic mention fetching
-   * This method demonstrates the fetch_mentions GameFunction in action
+   * Step 1.2 Implementation: Queue-based mention processing with zero data loss
+   * This method demonstrates the complete mention queue workflow
    */
   async execute(): Promise<void> {
     try {
-      appLogger.info("MentionsWorker: Starting execution cycle");
+      appLogger.info("MentionsWorker: Starting queue-based execution cycle");
 
-      // Step 1.1: Fetch mentions using our new GameFunction
-      appLogger.debug("MentionsWorker: Fetching mentions...");
+      // Step 1: Get current checkpoint for since_id
+      const currentCheckpoint = this._db.database
+        .prepare(
+          `
+        SELECT value FROM mention_state WHERE key = 'last_since_id'
+      `
+        )
+        .get() as any;
+      const sinceId = currentCheckpoint?.value;
 
-      // Call the fetch_mentions function directly for Step 1.1
-      const result = await fetchMentionsFunction.executable(
+      // Step 2: Fetch new mentions
+      appLogger.debug("MentionsWorker: Fetching new mentions...");
+      const fetchResult = await fetchMentionsFunction.executable(
         {
           max_results: "10",
+          since_id: sinceId,
         },
         (msg: string) => appLogger.debug(`fetch_mentions: ${msg}`)
       );
 
-      if (result.status === "done") {
-        // Parse the result from the GameFunction
-        const mentionsData: FetchMentionsResult = JSON.parse(result.feedback);
+      if (fetchResult.status !== "done") {
+        appLogger.warn(
+          { status: fetchResult.status, feedback: fetchResult.feedback },
+          "MentionsWorker: Failed to fetch mentions"
+        );
+        return;
+      }
+
+      const mentionsData: FetchMentionsResult = JSON.parse(
+        fetchResult.feedback
+      );
+      appLogger.info(
+        {
+          mentions_count: mentionsData.mentions.length,
+          newest_id: mentionsData.meta.newest_id,
+          rate_limit_remaining: mentionsData.rate_limit?.remaining,
+        },
+        "MentionsWorker: Mentions fetched successfully"
+      );
+
+      // Step 3: Store ALL mentions in persistent queue (zero loss guarantee)
+      if (mentionsData.mentions.length > 0) {
+        const storeResult = await storePendingMentionsFunction.executable(
+          {
+            mentions: JSON.stringify(mentionsData.mentions),
+            fetch_id: mentionsData.meta.newest_id || Date.now().toString(),
+          },
+          (msg: string) => appLogger.debug(`store_mentions: ${msg}`)
+        );
+
+        if (storeResult.status === "done") {
+          const storeData = JSON.parse(storeResult.feedback);
+          appLogger.info(
+            {
+              stored_count: storeData.stored_count,
+              skipped_count: storeData.skipped_count,
+            },
+            "MentionsWorker: Mentions stored in queue successfully"
+          );
+        }
+
+        // Step 4: Update checkpoint (safe now that mentions are stored)
+        await updateMentionCheckpointFunction.executable(
+          {
+            since_id: mentionsData.meta.newest_id!,
+            fetch_operation_id:
+              mentionsData.meta.newest_id || Date.now().toString(),
+          },
+          (msg: string) => appLogger.debug(`update_checkpoint: ${msg}`)
+        );
+      }
+
+      // Step 5: Get mentions ready for processing (rate-limit aware)
+      const processableResult = await getProcessableMentionsFunction.executable(
+        {
+          max_count: "5", // Process up to 5 mentions per cycle
+        },
+        (msg: string) => appLogger.debug(`get_processable: ${msg}`)
+      );
+
+      if (processableResult.status === "done") {
+        const processableData = JSON.parse(processableResult.feedback);
+        const mentions = processableData.mentions;
 
         appLogger.info(
           {
-            mentions_count: mentionsData.mentions.length,
-            newest_id: mentionsData.meta.newest_id,
-            rate_limit_remaining: mentionsData.rate_limit?.remaining,
+            processable_count: mentions.length,
+            rate_limit_capacity: processableData.rate_limit_capacity,
           },
-          "MentionsWorker: Mentions fetched successfully"
+          "MentionsWorker: Retrieved mentions for processing"
         );
 
-        // Log each mention for debugging (Step 1.1 requirement)
-        mentionsData.mentions.forEach((mention, index) => {
-          appLogger.debug(
-            {
-              mention_index: index + 1,
-              tweet_id: mention.id,
-              author: mention.author_username,
-              text:
-                mention.text.substring(0, 100) +
-                (mention.text.length > 100 ? "..." : ""),
-              created_at: mention.created_at,
-            },
-            "MentionsWorker: Processing mention"
-          );
-        });
+        // Step 6: Process each mention (AI decision-making)
+        for (const mention of mentions) {
+          try {
+            appLogger.debug(
+              {
+                mention_id: mention.mention_id,
+                author: mention.author_username,
+                priority: mention.priority,
+                text_preview: mention.text.substring(0, 50) + "...",
+              },
+              "MentionsWorker: Processing mention"
+            );
 
-        // TODO: For next steps (1.2, 1.3, 1.4):
-        // - Analyze intent for each mention
-        // - Generate appropriate responses
-        // - Track conversation context
-        // - Handle delegation to other workers
+            // Simple response for Step 1.2 - just acknowledge the mention
+            const responseText = `Thanks for mentioning me, @${mention.author_username}! 🤖`;
 
-        if (mentionsData.mentions.length === 0) {
-          appLogger.info("MentionsWorker: No new mentions found");
-        } else {
-          appLogger.info(
-            `MentionsWorker: Found ${mentionsData.mentions.length} mentions ready for processing`
-          );
+            // Post the reply
+            const replyResult = await replyToTweetFunction.executable(
+              {
+                tweet_id: mention.mention_id,
+                reply_text: responseText,
+              },
+              (msg: string) => appLogger.debug(`reply: ${msg}`)
+            );
+
+            if (replyResult.status === "done") {
+              // Mark as processed
+              await markMentionProcessedFunction.executable(
+                {
+                  mention_id: mention.mention_id,
+                  action_taken: "replied",
+                },
+                (msg: string) => appLogger.debug(`mark_processed: ${msg}`)
+              );
+
+              appLogger.info(
+                {
+                  mention_id: mention.mention_id,
+                  author: mention.author_username,
+                  response_text: responseText,
+                },
+                "MentionsWorker: Successfully replied to mention"
+              );
+            } else {
+              // Mark mention as failed and return to pending for retry
+              await markMentionFailedFunction.executable(
+                {
+                  mention_id: mention.mention_id,
+                  error_message: replyResult.feedback,
+                  max_retries: "3",
+                },
+                (msg: string) => appLogger.debug(`mark_failed: ${msg}`)
+              );
+
+              appLogger.warn(
+                {
+                  mention_id: mention.mention_id,
+                  author: mention.author_username,
+                  error: replyResult.feedback,
+                },
+                "MentionsWorker: Failed to reply to mention, returned to pending for retry"
+              );
+            }
+          } catch (mentionError: any) {
+            appLogger.error(
+              {
+                mention_id: mention.mention_id,
+                error: mentionError.message,
+              },
+              "MentionsWorker: Error processing individual mention"
+            );
+          }
         }
-      } else {
-        appLogger.warn(
-          { status: result.status, feedback: result.feedback },
-          "MentionsWorker: Failed to fetch mentions"
-        );
+
+        if (mentions.length === 0) {
+          appLogger.info("MentionsWorker: No mentions ready for processing");
+        }
       }
+
+      appLogger.info("MentionsWorker: Execution cycle completed successfully");
     } catch (error: any) {
       appLogger.error(
         {
