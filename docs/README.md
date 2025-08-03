@@ -48,6 +48,7 @@ npm run queue:status     # Quick queue health check
 npm run db:inspect       # Complete database overview
 npm run db:backup        # Create timestamped backup
 npm run db:reset         # Reset for fresh development
+npm run init:checkpoint <tweet_id>  # Initialize mention checkpoint
 ```
 
 ### **Development Commands**
@@ -57,23 +58,34 @@ npm run build           # Build TypeScript project
 npm run dev             # Development mode
 npm test                # Run test suite (integration tests with real API)
 npm run validate        # Quick system validation (no API required)
+npm run worker:mentions # Run MentionsWorker (production mode)
+npm run init:checkpoint # Initialize mention checkpoint for fresh setup
 ```
+
+### **🚀 Fresh Setup (New Computer)**
+
+When setting up GlitchBot on a fresh computer, initialize the mention checkpoint to avoid processing old mentions:
+
+```bash
+# 1. Find your latest manual reply on Twitter
+# Example: https://x.com/glitchbot_ai/status/1952105100731969704
+
+# 2. Initialize checkpoint with that tweet ID
+npm run init:checkpoint 1952105100731969704
+
+# 3. Start processing new mentions
+npm run worker:mentions
+```
+
+**Why this matters:** Without initialization, the bot will fetch and try to reply to old mentions you've already manually replied to.
 
 ### **Running MentionsWorker**
 
 ```bash
-# Single execution cycle (current implementation)
-npm run build && node -e "
-const {DatabaseManager} = require('./dist/lib/database-manager');
-const GlitchBotDB = require('./dist/lib/db').default;
-const {MentionsWorker} = require('./dist/workers/twitter/mentions-worker');
-const dbManager = new DatabaseManager('./glitchbot.db');
-const db = new GlitchBotDB(dbManager);
-const worker = new MentionsWorker(db);
-worker.execute().then(() => process.exit(0));
-"
+# Production mode (recommended)
+npm run worker:mentions
 
-# Or for development with TypeScript
+# Development mode with TypeScript
 npx ts-node -e "
 import {DatabaseManager} from './src/lib/database-manager';
 import GlitchBotDB from './src/lib/db';
@@ -83,6 +95,9 @@ const db = new GlitchBotDB(dbManager);
 const worker = new MentionsWorker(db);
 worker.execute().then(() => process.exit(0));
 "
+
+# Production scheduling (cron example)
+# */15 * * * * cd /path/to/glitchbot_ai && npm run worker:mentions
 ```
 
 ## 📊 **Current Implementation Status**
