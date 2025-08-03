@@ -58,6 +58,32 @@ npm run dev             # Development mode
 npm test                # Run test suite
 ```
 
+### **Running MentionsWorker**
+
+```bash
+# Single execution cycle (current implementation)
+npm run build && node -e "
+const {DatabaseManager} = require('./dist/lib/database-manager');
+const GlitchBotDB = require('./dist/lib/db').default;
+const {MentionsWorker} = require('./dist/workers/twitter/mentions-worker');
+const dbManager = new DatabaseManager('./glitchbot.db');
+const db = new GlitchBotDB(dbManager);
+const worker = new MentionsWorker(db);
+worker.execute().then(() => process.exit(0));
+"
+
+# Or for development with TypeScript
+npx ts-node -e "
+import {DatabaseManager} from './src/lib/database-manager';
+import GlitchBotDB from './src/lib/db';
+import {MentionsWorker} from './src/workers/twitter/mentions-worker';
+const dbManager = new DatabaseManager('./glitchbot.db');
+const db = new GlitchBotDB(dbManager);
+const worker = new MentionsWorker(db);
+worker.execute().then(() => process.exit(0));
+"
+```
+
 ## 📊 **Current Implementation Status**
 
 ### **✅ Completed (Phase 1)**
@@ -73,6 +99,8 @@ npm test                # Run test suite
 - AI-managed mention queue with zero data loss
 - Rate-limit-aware processing (handles 282:1 fetch/reply mismatch)
 - Enhanced error handling with retry logic
+- **Single-run execution pattern** - Perfect for cron scheduling
+- **Simple acknowledgment replies** - "Thanks for mentioning me, @user! 🤖"
 - **Centralized DatabaseManager** - Single point schema initialization
 - **Dependency Injection** - Clean database architecture
 - Complete database monitoring and management tools
