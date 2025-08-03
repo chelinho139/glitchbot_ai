@@ -23,7 +23,8 @@
     "db:reset": "node scripts/reset-database.js",
     "db:reset:force": "node scripts/reset-database.js --confirm",
     "db:backup": "node scripts/backup-database.js",
-    "queue:status": "node scripts/queue-status.js"
+    "queue:status": "node scripts/queue-status.js",
+    "validate": "npm run build && node scripts/validate-system.js"
   },
   "dependencies": {
     "@virtuals-protocol/game": "^0.1.14",

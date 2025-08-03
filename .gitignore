@@ -143,5 +143,8 @@ vite.config.ts.timestamp-*
 *.db-shm
 *.db-wal
 
+# Database backups (local development artifacts)
+backups/
+
 # macOS system files
 .DS_Store

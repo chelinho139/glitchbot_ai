@@ -55,7 +55,8 @@ npm run db:reset         # Reset for fresh development
 ```bash
 npm run build           # Build TypeScript project
 npm run dev             # Development mode
-npm test                # Run test suite
+npm test                # Run test suite (integration tests with real API)
+npm run validate        # Quick system validation (no API required)
 ```
 
 ### **Running MentionsWorker**
