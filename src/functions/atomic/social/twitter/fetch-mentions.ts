@@ -58,6 +58,18 @@ export interface TwitterMention {
     type: string;
     id: string;
   }>;
+  context_annotations?: Array<{
+    domain: {
+      id: string;
+      name: string;
+      description?: string;
+    };
+    entity: {
+      id: string;
+      name: string;
+      description?: string;
+    };
+  }>;
 }
 
 export interface FetchMentionsResult {
@@ -72,6 +84,54 @@ export interface FetchMentionsResult {
     limit: number;
     remaining: number;
     reset: number;
+  };
+  includes?: {
+    tweets?: Array<{
+      id: string;
+      text: string;
+      author_id: string;
+      created_at: string;
+      public_metrics?: {
+        retweet_count: number;
+        like_count: number;
+        reply_count: number;
+        quote_count: number;
+        bookmark_count?: number;
+        impression_count?: number;
+      };
+      referenced_tweets?: Array<{
+        type: string;
+        id: string;
+      }>;
+      context_annotations?: Array<{
+        domain: {
+          id: string;
+          name: string;
+          description?: string;
+        };
+        entity: {
+          id: string;
+          name: string;
+          description?: string;
+        };
+      }>;
+    }>;
+    users?: Array<{
+      id: string;
+      username: string;
+      name?: string;
+      description?: string;
+      verified?: boolean;
+      public_metrics?: {
+        followers_count: number;
+        following_count: number;
+        tweet_count: number;
+        listed_count: number;
+      };
+    }>;
+    media?: Array<any>;
+    polls?: Array<any>;
+    places?: Array<any>;
   };
 }
 
@@ -298,6 +358,10 @@ export const fetchMentionsFunction = new GameFunction({
             mention.referenced_tweets = tweet.referenced_tweets;
           }
 
+          if (tweet.context_annotations) {
+            mention.context_annotations = tweet.context_annotations;
+          }
+
           mentions.push(mention);
         }
       }
@@ -342,6 +406,68 @@ export const fetchMentionsFunction = new GameFunction({
 
       if (rateLimitInfo) {
         result.rate_limit = rateLimitInfo;
+      }
+
+      // Add includes section if present in API response
+      if (apiResponse.data.includes) {
+        result.includes = {};
+
+        // Process included tweets (referenced tweets)
+        if (apiResponse.data.includes.tweets) {
+          result.includes.tweets = apiResponse.data.includes.tweets.map(
+            (tweet: any) => ({
+              id: tweet.id,
+              text: tweet.text,
+              author_id: tweet.author_id,
+              created_at: tweet.created_at,
+              public_metrics: tweet.public_metrics
+                ? {
+                    retweet_count: tweet.public_metrics.retweet_count || 0,
+                    like_count: tweet.public_metrics.like_count || 0,
+                    reply_count: tweet.public_metrics.reply_count || 0,
+                    quote_count: tweet.public_metrics.quote_count || 0,
+                    bookmark_count: tweet.public_metrics.bookmark_count || 0,
+                    impression_count:
+                      tweet.public_metrics.impression_count || 0,
+                  }
+                : undefined,
+              referenced_tweets: tweet.referenced_tweets,
+              context_annotations: tweet.context_annotations,
+            })
+          );
+        }
+
+        // Process included users (we already have this logic above, but keep it here too)
+        if (apiResponse.data.includes.users) {
+          result.includes.users = apiResponse.data.includes.users.map(
+            (user: any) => ({
+              id: user.id,
+              username: user.username,
+              name: user.name,
+              description: user.description,
+              verified: user.verified,
+              public_metrics: user.public_metrics
+                ? {
+                    followers_count: user.public_metrics.followers_count || 0,
+                    following_count: user.public_metrics.following_count || 0,
+                    tweet_count: user.public_metrics.tweet_count || 0,
+                    listed_count: user.public_metrics.listed_count || 0,
+                  }
+                : undefined,
+            })
+          );
+        }
+
+        // Add other includes sections if they exist
+        if (apiResponse.data.includes.media) {
+          result.includes.media = apiResponse.data.includes.media;
+        }
+        if (apiResponse.data.includes.polls) {
+          result.includes.polls = apiResponse.data.includes.polls;
+        }
+        if (apiResponse.data.includes.places) {
+          result.includes.places = apiResponse.data.includes.places;
+        }
       }
 
       appLogger.info(

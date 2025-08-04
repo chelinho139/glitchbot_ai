@@ -306,8 +306,18 @@ export class RateLimitedTwitterClient {
     try {
       const timelineParams: any = {
         max_results: options.max_results || 50,
-        expansions: ["author_id", "referenced_tweets.id"],
-        "tweet.fields": ["created_at", "public_metrics", "referenced_tweets"],
+        expansions: [
+          "author_id",
+          "referenced_tweets.id",
+          "referenced_tweets.id.author_id", // NEW: Get referenced tweet authors
+        ],
+        "tweet.fields": [
+          "created_at",
+          "public_metrics",
+          "referenced_tweets",
+          "text", // NEW: Ensure complete text
+          "context_annotations", // NEW: Content topic detection
+        ],
         "user.fields": [
           "id",
           "username",
