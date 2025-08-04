@@ -109,8 +109,22 @@ export class DatabaseManager {
         engaged_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         action TEXT CHECK(action IN ('reply','quote','like')) NOT NULL
       );
+      
+      CREATE TABLE IF NOT EXISTS candidate_tweets (
+        tweet_id TEXT PRIMARY KEY,                -- Original tweet ID (not mention ID)
+        author_id TEXT NOT NULL,                  -- Original author ID
+        author_username TEXT NOT NULL,            -- Original author username
+        content TEXT NOT NULL,                    -- Original tweet text
+        created_at TEXT NOT NULL,                 -- Original tweet timestamp
+        public_metrics TEXT,                      -- Engagement data (JSON)
+        discovered_via_mention_id TEXT NOT NULL,  -- Which mention led us to this
+        discovery_timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        curation_score REAL DEFAULT 0            -- Content quality score (0-20)
+      );
     `);
-    appLogger.debug("Engagement schema created (engaged_tweets)");
+    appLogger.debug(
+      "Engagement schema created (engaged_tweets, candidate_tweets)"
+    );
   }
 
   /**
@@ -128,6 +142,12 @@ export class DatabaseManager {
         ON rate_limits(endpoint, window_type, window_start);
       CREATE INDEX IF NOT EXISTS idx_rate_limits_reset
         ON rate_limits(endpoint, window_type, twitter_reset_time);
+      CREATE INDEX IF NOT EXISTS idx_candidate_tweets_score
+        ON candidate_tweets(curation_score DESC);
+      CREATE INDEX IF NOT EXISTS idx_candidate_tweets_discovery
+        ON candidate_tweets(discovery_timestamp DESC);
+      CREATE INDEX IF NOT EXISTS idx_candidate_tweets_author
+        ON candidate_tweets(author_id);
     `);
     appLogger.debug("Database indexes created");
   }

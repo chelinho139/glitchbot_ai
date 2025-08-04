@@ -14,10 +14,15 @@ export interface CadenceRecord {
 }
 
 export interface CandidateTweet {
-  tweet_id: string;
-  discovered_at: string;
-  score: number;
-  reason: string;
+  tweet_id: string; // Original tweet ID (not mention ID)
+  author_id: string; // Original author ID
+  author_username: string; // Original author username
+  content: string; // Original tweet text
+  created_at: string; // Original tweet timestamp
+  public_metrics?: string; // Engagement data (JSON string)
+  discovered_via_mention_id: string; // Which mention led us to this
+  discovery_timestamp: string; // When we found it
+  curation_score: number; // Content quality score (0-20)
 }
 
 class GlitchBotDB {
@@ -54,7 +59,9 @@ class GlitchBotDB {
 
   // Get cadence value (e.g., last_quote_ts, last_reply_ts)
   getCadence(key: string): string | null {
-    const stmt = this.dbManager.database.prepare("SELECT value FROM cadence WHERE key = ?");
+    const stmt = this.dbManager.database.prepare(
+      "SELECT value FROM cadence WHERE key = ?"
+    );
     const result = stmt.get(key) as CadenceRecord | undefined;
     return result?.value || null;
   }
