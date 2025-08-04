@@ -40,6 +40,11 @@ const INTENT_PATTERNS = {
     /developing/i,
     /alert/i,
     /bulletin/i,
+    /chatgpt.*out/i,
+    /gpt.*released/i,
+    /new.*model/i,
+    /.*is out/i,
+    /.*released/i,
   ],
   opinion_share: [
     /think/i,
@@ -91,6 +96,35 @@ function analyzeMention(
   const textLength = mentionText.length;
   if (textLength >= 20 && textLength <= 280) score += 2; // Good length
   if (textLength >= 50) score += 1; // Substantial content
+
+  // Tech/AI content detection for mentions
+  const techKeywords = [
+    "chatgpt",
+    "gpt",
+    "ai",
+    "agent",
+    "agentic",
+    "openai",
+    "claude",
+    "bitcoin",
+    "crypto",
+    "blockchain",
+    "defi",
+    "biotech",
+    "longevity",
+    "tech",
+    "neuralink",
+    "AGI",
+    "ethereum",
+    "space",
+  ];
+  const lowerMention = mentionText.toLowerCase();
+  const techMatches = techKeywords.filter((keyword) =>
+    lowerMention.includes(keyword)
+  );
+  if (techMatches.length > 0) {
+    score += Math.min(techMatches.length * 1.5, 3); // Up to 3 bonus points for tech content
+  }
 
   // Intent detection with confidence scoring
   for (const [intentType, patterns] of Object.entries(INTENT_PATTERNS)) {
@@ -149,10 +183,10 @@ function analyzeReferencedTweet(tweetData?: any): {
     },
   });
 
-  // Scale scores to fit 0-10 range
-  score += Math.min(keywordScore / 1.5, 3); // Up to 3 points
-  score += Math.min(engagementScore / 2, 4); // Up to 4 points
-  score += Math.min(authorScore / 1.5, 3); // Up to 3 points
+  // Scale scores to fit 0-10 range (more generous scaling)
+  score += Math.min(keywordScore / 1, 4); // Up to 4 points (improved from 3)
+  score += Math.min(engagementScore / 1.5, 5); // Up to 5 points (improved from 4)
+  score += Math.min(authorScore / 2, 2); // Up to 2 points (balanced)
 
   reasons.push(`keywords: ${Math.round(keywordScore)}`);
   reasons.push(`engagement: ${Math.round(engagementScore)}`);

@@ -74,38 +74,97 @@ class GlitchBotDB {
     stmt.run(key, value);
   }
 
-  // Candidate tweet methods commented out until Phase 2 (DiscoveryWorker)
-  // These will be uncommented when we implement the DiscoveryWorker
+  // Candidate tweet methods for Phase 2B storage
 
-  /*
-  // Add candidate tweet
-  addCandidate(tweetId: string, score: number, reason: string): void {
-    const stmt = this.dbManager.database.prepare(
-      "INSERT OR REPLACE INTO candidate_tweets (tweet_id, score, reason) VALUES (?, ?, ?)"
+  // Add candidate tweet with full metadata
+  addCandidateTweet(candidateTweet: CandidateTweet): void {
+    const stmt = this.dbManager.database.prepare(`
+      INSERT OR REPLACE INTO candidate_tweets (
+        tweet_id, author_id, author_username, content, created_at,
+        public_metrics, discovered_via_mention_id, discovery_timestamp, curation_score
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `);
+
+    stmt.run(
+      candidateTweet.tweet_id,
+      candidateTweet.author_id,
+      candidateTweet.author_username,
+      candidateTweet.content,
+      candidateTweet.created_at,
+      candidateTweet.public_metrics,
+      candidateTweet.discovered_via_mention_id,
+      candidateTweet.discovery_timestamp,
+      candidateTweet.curation_score
     );
-    stmt.run(tweetId, score, reason);
+
+    logger.info(
+      {
+        tweet_id: candidateTweet.tweet_id,
+        author: candidateTweet.author_username,
+        score: candidateTweet.curation_score,
+      },
+      "Candidate tweet stored successfully"
+    );
   }
 
-  // Get best candidate tweet
-  getBestCandidate(): CandidateTweet | null {
+  // Get best candidate tweets by score
+  getBestCandidateTweets(limit: number = 10): CandidateTweet[] {
     const stmt = this.dbManager.database.prepare(`
-      SELECT tweet_id, discovered_at, score, reason 
-      FROM candidate_tweets 
+      SELECT * FROM candidate_tweets 
       WHERE tweet_id NOT IN (SELECT tweet_id FROM engaged_tweets)
-      ORDER BY score DESC 
-      LIMIT 1
+      ORDER BY curation_score DESC, discovery_timestamp DESC
+      LIMIT ?
     `);
-    return stmt.get() as CandidateTweet | null;
+    return stmt.all(limit) as CandidateTweet[];
+  }
+
+  // Get candidate tweet by ID
+  getCandidateTweet(tweetId: string): CandidateTweet | null {
+    const stmt = this.dbManager.database.prepare(
+      "SELECT * FROM candidate_tweets WHERE tweet_id = ?"
+    );
+    return stmt.get(tweetId) as CandidateTweet | null;
+  }
+
+  // Check if candidate tweet already exists
+  candidateTweetExists(tweetId: string): boolean {
+    const stmt = this.dbManager.database.prepare(
+      "SELECT 1 FROM candidate_tweets WHERE tweet_id = ?"
+    );
+    return !!stmt.get(tweetId);
   }
 
   // Remove processed candidate
-  removeCandidate(tweetId: string): void {
+  removeCandidateTweet(tweetId: string): void {
     const stmt = this.dbManager.database.prepare(
       "DELETE FROM candidate_tweets WHERE tweet_id = ?"
     );
-    stmt.run(tweetId);
+    const result = stmt.run(tweetId);
+    logger.debug(
+      { tweet_id: tweetId, deleted: result.changes },
+      "Candidate tweet removed"
+    );
   }
-  */
+
+  // Get candidate tweet statistics
+  getCandidateStats(): {
+    total: number;
+    high_quality: number;
+    avg_score: number;
+  } {
+    const stmt = this.dbManager.database.prepare(`
+      SELECT 
+        COUNT(*) as total,
+        COUNT(CASE WHEN curation_score >= 15 THEN 1 END) as high_quality,
+        AVG(curation_score) as avg_score
+      FROM candidate_tweets
+    `);
+    return stmt.get() as {
+      total: number;
+      high_quality: number;
+      avg_score: number;
+    };
+  }
 
   // Clean old records (older than 7 days)
   cleanup(): void {
@@ -116,17 +175,16 @@ class GlitchBotDB {
     const cleanEngaged = this.dbManager.database.prepare(
       "DELETE FROM engaged_tweets WHERE engaged_at < ?"
     );
-    // cleanCandidates will be uncommented in Phase 2
-    // const cleanCandidates = this.dbManager.database.prepare(
-    //   "DELETE FROM candidate_tweets WHERE discovered_at < ?"
-    // );
+    const cleanCandidates = this.dbManager.database.prepare(
+      "DELETE FROM candidate_tweets WHERE discovery_timestamp < ?"
+    );
 
     const engagedDeleted = cleanEngaged.run(weekAgo).changes;
-    // const candidatesDeleted = cleanCandidates.run(weekAgo).changes;
+    const candidatesDeleted = cleanCandidates.run(weekAgo).changes;
 
     logger.info(
-      { engagedDeleted },
-      "Database cleanup completed (candidate_tweets cleanup will be added in Phase 2)"
+      { engagedDeleted, candidatesDeleted },
+      "Database cleanup completed for engaged_tweets and candidate_tweets"
     );
   }
 

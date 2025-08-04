@@ -9,6 +9,8 @@ import replyToTweetFunction from "../../functions/atomic/social/twitter/reply-to
 import markMentionProcessedFunction from "../../functions/atomic/utilities/mark-mention-processed";
 import markMentionFailedFunction from "../../functions/atomic/utilities/mark-mention-failed";
 import updateMentionCheckpointFunction from "../../functions/atomic/utilities/update-mention-checkpoint";
+import scoreContentFunction from "../../functions/atomic/analytics/score-content";
+import storeCandidateTweetFunction from "../../functions/atomic/utilities/store-candidate-tweet";
 import appLogger from "../../lib/log";
 
 /**
@@ -36,6 +38,8 @@ export class MentionsWorker extends GameWorker {
         markMentionProcessedFunction,
         markMentionFailedFunction,
         updateMentionCheckpointFunction,
+        scoreContentFunction,
+        storeCandidateTweetFunction,
       ],
       getEnvironment: async () => ({
         platform: "Twitter/X",
@@ -196,7 +200,7 @@ export class MentionsWorker extends GameWorker {
           "MentionsWorker: Retrieved mentions for processing"
         );
 
-        // Step 6: Process each mention (AI decision-making)
+        // Step 6: Process each mention with enhanced content analysis
         for (const mention of mentions) {
           try {
             appLogger.debug(
@@ -206,11 +210,132 @@ export class MentionsWorker extends GameWorker {
                 priority: mention.priority,
                 text_preview: mention.text.substring(0, 50) + "...",
               },
-              "MentionsWorker: Processing mention"
+              "MentionsWorker: Processing mention with content analysis"
             );
 
-            // Simple response for Step 1.2 - just acknowledge the mention
-            const responseText = `Thanks for mentioning me, @${mention.author_username}! 🤖`;
+            // Phase 2A: Analyze content for scoring and intent detection
+            let contentAnalysis = null;
+            let responseText = `Thanks for mentioning me, @${mention.author_username}! 🤖`;
+
+            try {
+              // Find referenced tweet data if available
+              let referencedTweet: any = null;
+              let referencedAuthor: any = null;
+
+              if (
+                mentionsData.includes?.tweets &&
+                mention.referenced_tweets?.length > 0
+              ) {
+                const referencedTweetId = mention.referenced_tweets[0].id;
+                referencedTweet = mentionsData.includes.tweets.find(
+                  (t) => t.id === referencedTweetId
+                );
+
+                if (referencedTweet && mentionsData.includes?.users) {
+                  referencedAuthor = mentionsData.includes.users.find(
+                    (u) => u.id === referencedTweet.author_id
+                  );
+                }
+              }
+
+              // Get mention author info
+              const mentionAuthor = mentionsData.includes?.users?.find(
+                (u) => u.id === mention.author_id
+              );
+
+              // Analyze content for better responses
+              const analysisArgs: any = {
+                mention_text: mention.text,
+              };
+              
+              if (mentionAuthor) {
+                analysisArgs.mention_author = JSON.stringify(mentionAuthor);
+              }
+              if (referencedTweet) {
+                analysisArgs.referenced_tweet = JSON.stringify(referencedTweet);
+              }
+              if (referencedAuthor) {
+                analysisArgs.referenced_author = JSON.stringify(referencedAuthor);
+              }
+
+              const analysisResult = await scoreContentFunction.executable(
+                analysisArgs,
+                (msg: string) => appLogger.debug(`content_analysis: ${msg}`)
+              );
+
+              if (analysisResult.status === "done") {
+                contentAnalysis = JSON.parse(analysisResult.feedback);
+
+                appLogger.info(
+                  {
+                    mention_id: mention.mention_id,
+                    combined_score: contentAnalysis.combined_score,
+                    intent_type: contentAnalysis.intent_type,
+                    response_style: contentAnalysis.response_style,
+                    confidence: contentAnalysis.confidence,
+                  },
+                  "MentionsWorker: Content analysis completed"
+                );
+
+                // Generate context-aware response based on analysis
+                responseText = this.generateContextualResponse(
+                  mention.author_username,
+                  contentAnalysis,
+                  referencedTweet
+                );
+
+                                  // Phase 2B: Store high-quality referenced tweets
+                  if (referencedTweet && contentAnalysis.combined_score >= 8) {
+                    try {
+                      const storageArgs: any = {
+                        referenced_tweet: JSON.stringify(referencedTweet),
+                        mention_id: mention.mention_id,
+                        content_analysis: JSON.stringify(contentAnalysis),
+                      };
+                      
+                      if (referencedAuthor) {
+                        storageArgs.referenced_author = JSON.stringify(referencedAuthor);
+                      }
+
+                      const storageResult =
+                        await storeCandidateTweetFunction.executable(
+                          storageArgs,
+                          (msg: string) => appLogger.debug(`storage: ${msg}`)
+                        );
+
+                    if (storageResult.status === "done") {
+                      const storageData = JSON.parse(storageResult.feedback);
+                      if (storageData.stored) {
+                        appLogger.info(
+                          {
+                            mention_id: mention.mention_id,
+                            tweet_id: referencedTweet.id,
+                            storage_reason: storageData.reason,
+                          },
+                          "MentionsWorker: Referenced tweet stored for future discovery"
+                        );
+                      }
+                    }
+                  } catch (storageError: any) {
+                    appLogger.warn(
+                      {
+                        mention_id: mention.mention_id,
+                        error: storageError.message,
+                      },
+                      "MentionsWorker: Failed to store referenced tweet"
+                    );
+                  }
+                }
+              }
+            } catch (analysisError: any) {
+              appLogger.warn(
+                {
+                  mention_id: mention.mention_id,
+                  error: analysisError.message,
+                },
+                "MentionsWorker: Content analysis failed, using standard response"
+              );
+            }
 
             // Post the reply
             const replyResult = await replyToTweetFunction.executable(
@@ -222,11 +347,20 @@ export class MentionsWorker extends GameWorker {
             );
 
             if (replyResult.status === "done") {
-              // Mark as processed
+              // Mark as processed with enhanced action data
+              const actionData = contentAnalysis
+                ? {
+                    action_taken: "replied_with_analysis",
+                    content_score: contentAnalysis.combined_score,
+                    intent_type: contentAnalysis.intent_type,
+                    response_style: contentAnalysis.response_style,
+                  }
+                : { action_taken: "replied" };
+
               await markMentionProcessedFunction.executable(
                 {
                   mention_id: mention.mention_id,
-                  action_taken: "replied",
+                  action_taken: JSON.stringify(actionData),
                 },
                 (msg: string) => appLogger.debug(`mark_processed: ${msg}`)
               );
@@ -236,8 +370,15 @@ export class MentionsWorker extends GameWorker {
                   mention_id: mention.mention_id,
                   author: mention.author_username,
                   response_text: responseText,
+                  content_analysis: contentAnalysis
+                    ? {
+                        score: contentAnalysis.combined_score,
+                        intent: contentAnalysis.intent_type,
+                        style: contentAnalysis.response_style,
+                      }
+                    : null,
                 },
-                "MentionsWorker: Successfully replied to mention"
+                "MentionsWorker: Successfully replied to mention with enhanced analysis"
               );
             } else {
               // Mark mention as failed and return to pending for retry
@@ -331,6 +472,214 @@ export class MentionsWorker extends GameWorker {
         "MentionsWorker: Test encountered error"
       );
       return null;
+    }
+  }
+
+  /**
+   * Generate contextual responses based on content analysis
+   * Phase 3A implementation (early preview)
+   */
+  private generateContextualResponse(
+    username: string,
+    analysis: any,
+    _referencedTweet?: any
+  ): string {
+    const templates = {
+      news_share: [
+        `Thanks for sharing this news, @${username}! 📰 Looks interesting, I'll take a closer look`,
+        `Appreciate you bringing this to my attention, @${username}! 🗞️ Fascinating development`,
+        `Thanks for the heads up, @${username}! 📈 Always good to stay informed`,
+      ],
+      opinion_share: [
+        `Thanks for tagging me on this perspective, @${username}! 🤔 Interesting viewpoint`,
+        `Appreciate you including me in this discussion, @${username}! 💭 I'll consider this`,
+        `Thanks for sharing your thoughts, @${username}! 🧠 Good food for thought`,
+      ],
+      question: [
+        `Thanks for bringing this to my attention, @${username}! 🤖 I'll analyze this`,
+        `Appreciate the question, @${username}! 🧠 Let me take a look at this`,
+        `Thanks for asking, @${username}! 🔍 I'll give this some thought`,
+      ],
+      general: [
+        `Thanks for mentioning me, @${username}! 🤖`,
+        `Appreciate the mention, @${username}! 👋`,
+        `Thanks for including me, @${username}! 🚀`,
+      ],
+    };
+
+    // High-quality content gets more enthusiastic responses
+    const qualityModifiers =
+      analysis.combined_score >= 15
+        ? [
+            "This looks really high-quality! ",
+            "Excellent content! ",
+            "Great find! ",
+          ]
+        : analysis.combined_score >= 12
+        ? ["This looks interesting! ", "Nice share! ", ""]
+        : [""];
+
+    const responseType = analysis.response_style || "general";
+    const templateArray = templates[responseType as keyof typeof templates] || templates.general;
+    const selectedTemplate =
+      templateArray[Math.floor(Math.random() * templateArray.length)];
+
+    const qualityModifier =
+      qualityModifiers[Math.floor(Math.random() * qualityModifiers.length)] || "";
+
+    return (qualityModifier || "") + (selectedTemplate || `Thanks for mentioning me, @${username}! 🤖`);
+  }
+
+  /**
+   * Enhanced production testing method
+   * Tests the complete pipeline: fetch → analyze → store → respond
+   */
+  async testProductionPipeline(): Promise<any> {
+    try {
+      appLogger.info("MentionsWorker: Running PRODUCTION PIPELINE test...");
+
+      const startTime = Date.now();
+
+      // Step 1: Fetch mentions with enhanced API
+      const fetchResult = await fetchMentionsFunction.executable(
+        { max_results: "5" },
+        (msg: string) => appLogger.info(`PIPELINE: ${msg}`)
+      );
+
+      if (fetchResult.status !== "done") {
+        return { success: false, error: "Failed to fetch mentions" };
+      }
+
+      const mentionsData: FetchMentionsResult = JSON.parse(
+        fetchResult.feedback
+      );
+
+      const results = {
+        execution_time: Date.now() - startTime,
+        mentions_found: mentionsData.mentions.length,
+        includes_data: {
+          tweets: mentionsData.includes?.tweets?.length || 0,
+          users: mentionsData.includes?.users?.length || 0,
+        },
+        analysis_results: [] as any[],
+        storage_results: [] as any[],
+        rate_limit: mentionsData.rate_limit,
+      };
+
+      // Step 2: Analyze each mention
+      for (const mention of mentionsData.mentions) {
+        try {
+          // Find referenced tweet data
+          let referencedTweet: any = null;
+          let referencedAuthor: any = null;
+
+          if (
+            mentionsData.includes?.tweets &&
+            mention.referenced_tweets &&
+            mention.referenced_tweets.length > 0
+          ) {
+            const referencedTweetId = mention.referenced_tweets[0]?.id;
+            referencedTweet = mentionsData.includes.tweets.find(
+              (t) => t.id === referencedTweetId
+            );
+
+            if (referencedTweet && mentionsData.includes?.users) {
+              referencedAuthor = mentionsData.includes.users.find(
+                (u) => u.id === referencedTweet.author_id
+              );
+            }
+          }
+
+          const mentionAuthor = mentionsData.includes?.users?.find(
+            (u) => u.id === mention.author_id
+          );
+
+          // Analyze content
+          const testAnalysisArgs: any = {
+            mention_text: mention.text,
+          };
+          
+          if (mentionAuthor) {
+            testAnalysisArgs.mention_author = JSON.stringify(mentionAuthor);
+          }
+          if (referencedTweet) {
+            testAnalysisArgs.referenced_tweet = JSON.stringify(referencedTweet);
+          }
+          if (referencedAuthor) {
+            testAnalysisArgs.referenced_author = JSON.stringify(referencedAuthor);
+          }
+
+          const analysisResult = await scoreContentFunction.executable(
+            testAnalysisArgs,
+            () => {} // Silent logger for test
+          );
+
+          if (analysisResult.status === "done") {
+            const analysis = JSON.parse(analysisResult.feedback);
+
+            results.analysis_results.push({
+              mention_id: mention.id,
+              author: mention.author_id,
+              text_preview: mention.text.substring(0, 50) + "...",
+              combined_score: analysis.combined_score,
+              intent_type: analysis.intent_type,
+              response_style: analysis.response_style,
+              confidence: analysis.confidence,
+              has_referenced_tweet: !!referencedTweet,
+            });
+
+            // Test storage for high-quality content
+            if (referencedTweet && analysis.combined_score >= 8) {
+              const testStorageArgs: any = {
+                referenced_tweet: JSON.stringify(referencedTweet),
+                mention_id: mention.id,
+                content_analysis: JSON.stringify(analysis),
+              };
+              
+              if (referencedAuthor) {
+                testStorageArgs.referenced_author = JSON.stringify(referencedAuthor);
+              }
+
+              const storageResult =
+                await storeCandidateTweetFunction.executable(
+                  testStorageArgs,
+                  () => {} // Silent logger for test
+                );
+
+              if (storageResult.status === "done") {
+                const storageData = JSON.parse(storageResult.feedback);
+                results.storage_results.push({
+                  mention_id: mention.id,
+                  referenced_tweet_id: referencedTweet.id,
+                  stored: storageData.stored,
+                  reason: storageData.reason,
+                  score: analysis.combined_score,
+                });
+              }
+            }
+          }
+        } catch (error: any) {
+          appLogger.warn(
+            { error: error.message },
+            "Error in pipeline test analysis"
+          );
+        }
+      }
+
+      appLogger.info(
+        {
+          pipeline_results: results,
+        },
+        "MentionsWorker: Production pipeline test completed"
+      );
+
+      return { success: true, results };
+    } catch (error: any) {
+      appLogger.error(
+        { error: error.message },
+        "MentionsWorker: Production pipeline test failed"
+      );
+      return { success: false, error: error.message };
     }
   }
 }
