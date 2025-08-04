@@ -315,10 +315,23 @@ export const fetchMentionsFunction = new GameFunction({
         result_count: apiResponse.data.meta?.result_count || mentions.length,
       };
 
-      if (apiResponse.data.meta?.newest_id)
-        meta.newest_id = apiResponse.data.meta.newest_id;
-      if (apiResponse.data.meta?.oldest_id)
-        meta.oldest_id = apiResponse.data.meta.oldest_id;
+      // BUGFIX: Calculate newest/oldest from actual mention IDs, don't trust Twitter's meta
+      // Twitter's meta.newest_id can return referenced tweet IDs instead of mention tweet IDs
+      if (mentions.length > 0) {
+        const mentionIds = mentions.map((m) => BigInt(m.id));
+        meta.newest_id = mentionIds
+          .reduce((max, id) => (id > max ? id : max))
+          .toString();
+        meta.oldest_id = mentionIds
+          .reduce((min, id) => (id < min ? id : min))
+          .toString();
+      } else {
+        // Fallback to API meta if no mentions processed
+        if (apiResponse.data.meta?.newest_id)
+          meta.newest_id = apiResponse.data.meta.newest_id;
+        if (apiResponse.data.meta?.oldest_id)
+          meta.oldest_id = apiResponse.data.meta.oldest_id;
+      }
       if (apiResponse.data.meta?.next_token)
         meta.next_token = apiResponse.data.meta.next_token;
 
