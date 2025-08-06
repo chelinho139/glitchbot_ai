@@ -1,13 +1,17 @@
 # 🗄️ GlitchBot Database Schema & Operations
 
-This document provides comprehensive documentation for GlitchBot's SQLite database, including schema design, table relationships, and operational procedures.
+This document provides comprehensive documentation for GlitchBot's SQLite database, including schema design, table relationships, and operational procedures for the complete context-aware mention processing system.
 
 ## 📊 **Database Overview**
 
 **File:** `glitchbot.db` (SQLite)  
 **Location:** Project root directory  
-**Purpose:** Persistent storage for mentions queue, rate limiting, engagement tracking, and system state  
-**Architecture:** Centralized DatabaseManager with single-point schema initialization
+**Purpose:** Persistent storage for context-aware mentions queue, candidate tweet curation, rate limiting, engagement tracking, and system state  
+**Architecture:** Centralized DatabaseManager with enhanced mention-to-content linkage system
+
+### **🎯 Core Innovation: Mention→Content Linkage**
+
+The database now features a sophisticated linkage system between `PENDING_MENTIONS` and `CANDIDATE_TWEETS` via the `discovered_via_mention_id` field, enabling intelligent context-aware responses.
 
 ## 🏗️ **Database Architecture**
 
@@ -66,7 +70,8 @@ CREATE TABLE pending_mentions (
   intent_type TEXT,                         -- Detected intent (future: 'question', 'suggestion', etc.)
   confidence REAL,                          -- Intent confidence score (future use)
   original_fetch_id TEXT,                   -- Batch ID from fetch operation
-  worker_id TEXT                            -- Which worker is processing (NULL = available)
+  worker_id TEXT,                           -- Which worker is processing (NULL = available)
+  referenced_tweets TEXT                    -- JSON array of referenced tweet data
 );
 
 -- Indexes for performance
@@ -97,7 +102,39 @@ CREATE TABLE mention_state (
 - `last_since_id`: Latest mention ID processed (Twitter pagination)
 - `last_fetch_time`: Timestamp of last successful fetch operation
 
-### **3. ENGAGED_TWEETS - Duplicate Prevention**
+### **3. CANDIDATE_TWEETS - Content Curation System**
+
+**Purpose:** Stores curated content referenced in mentions for intelligent response context
+
+```sql
+CREATE TABLE candidate_tweets (
+  tweet_id TEXT PRIMARY KEY,               -- Referenced tweet ID
+  author_id TEXT NOT NULL,                 -- Original tweet author ID
+  author_username TEXT NOT NULL,           -- Original tweet author username
+  content TEXT NOT NULL,                   -- Tweet content/text
+  created_at TEXT NOT NULL,                -- Original tweet timestamp
+  public_metrics TEXT,                     -- JSON: engagement metrics (likes, retweets, etc.)
+  discovered_via_mention_id TEXT NOT NULL, -- Links to pending_mentions.mention_id
+  discovery_timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP, -- When we discovered it
+  curation_score REAL DEFAULT 0            -- Content quality score (7 = actively shared)
+);
+
+-- Critical index for mention→content linkage
+CREATE INDEX idx_candidate_discovered_via ON candidate_tweets(discovered_via_mention_id);
+CREATE INDEX idx_candidate_score ON candidate_tweets(curation_score DESC);
+```
+
+**🔗 Key Innovation: Mention→Content Linkage**
+
+The `discovered_via_mention_id` field creates a direct link between mentions and the content users are sharing:
+
+- When user posts: `@glitchbot_ai check this out!` + references @sama's tweet
+- `pending_mentions` stores the mention with `mention_id = "123"`
+- `candidate_tweets` stores @sama's tweet with `discovered_via_mention_id = "123"`
+- Worker retrieves mention with context: "User shared @sama's AI research paper"
+- Response: "Fascinating research from @sama! Thanks for flagging this @user 🤖"
+
+### **4. ENGAGED_TWEETS - Duplicate Prevention**
 
 **Purpose:** Records all bot interactions to prevent duplicate replies
 
@@ -111,7 +148,7 @@ CREATE TABLE engaged_tweets (
 CREATE INDEX idx_engaged_at ON engaged_tweets(engaged_at);
 ```
 
-### **4. RATE_LIMITS - API Protection**
+### **5. RATE_LIMITS - API Protection**
 
 **Purpose:** Tracks Twitter API usage across multiple time windows and workers
 
@@ -131,7 +168,7 @@ CREATE INDEX idx_rate_limits_window ON rate_limits(endpoint, window_type, window
 CREATE INDEX idx_rate_limits_reset ON rate_limits(twitter_reset_time);
 ```
 
-### **5. CADENCE - Timing Rules**
+### **6. CADENCE - Timing Rules**
 
 **Purpose:** Enforces posting cadence and timing rules (Step 1.3+)
 

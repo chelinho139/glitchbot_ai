@@ -1,55 +1,156 @@
-# 🔥 MentionsWorker - Real-Time Social Interactions
+# 🔥 MentionsWorker - Context-Aware Social Interactions
 
 **Priority**: CRITICAL  
-**Response Time**: < 5 minutes for mentions, immediate for DMs  
-**Location**: `src/workers/twitter/mentions-worker.ts`
+**Response Time**: < 3 minutes for mentions, intelligent context-aware responses  
+**Location**: `src/workers/mentions-worker.ts`
 
 ## 📊 **Current Implementation Status**
 
-### ✅ **COMPLETED (Steps 1.1 & 1.2) - Production Ready**
+### ✅ **COMPLETED - Production Ready**
 
-- **Queue-based Mention Processing**: Zero data loss, rate-limit-aware system
-- **Twitter API v2 Integration**: Full mention fetching with user metadata
+- **Context-Aware Processing**: Understands and references shared content in responses
+- **Candidate Tweet Storage**: Automatically captures and stores referenced tweets for curation
+- **Enhanced Mention Queue**: Zero data loss with candidate tweet context linking
+- **Twitter API v2 Integration**: Full mention fetching with includes data (tweets, users, metrics)
 - **Enterprise Rate Limiting**: Automatic tracking across 15min/hour/day windows
-- **Persistent Storage**: SQLite queue system that survives crashes/restarts
-- **Basic Reply System**: Simple acknowledgment responses to all mentions
-- **Error Handling**: Comprehensive retry logic and failure recovery
+- **Intelligent Response System**: Context-aware replies that reference specific content and authors
+- **Database Integration**: Seamless linking between mentions and candidate tweets via mention_id
+- **Error Handling**: Comprehensive retry logic and graceful failure recovery
 
-### 🔄 **PLANNED (Steps 1.3+) - Future Enhancements**
+### 🚀 **Key Features Implemented**
 
-- **Intent Recognition**: Understanding what users want (keyword-based classification)
-- **Response Templates**: Different responses per intent type
-- **Context Tracking**: Conversation history and multi-turn interactions
-- **Cross-Worker Delegation**: Routing requests to DiscoveryWorker/EngagementWorker
-- **Advanced Priority**: User authority, content quality scoring
-- **Escalation Mechanism**: Human review for complex requests
+- **Content Recognition**: Analyzes referenced tweets to understand what users are sharing
+- **Author Attribution**: References original content creators in responses
+- **Engagement Insights**: Notes high-engagement content in replies
+- **Topic Understanding**: Shows comprehension of shared content subject matter
+- **Community Building**: Creates connections between users and original creators
 
 ## 🎯 Purpose & Responsibilities
 
-The **MentionsWorker** is the frontline interface between GlitchBot and the Twitter community. It handles all real-time social interactions through a robust queue-based system that ensures no mention is ever lost.
+The **MentionsWorker** is GlitchBot's intelligent content acknowledgment system. It processes mentions where users share interesting content, providing context-aware responses that demonstrate understanding and appreciation of the specific content being shared.
 
 ### **Core Mission**
 
-- Provide reliable, persistent mention processing with zero data loss
-- Maintain simple but friendly responses to all user interactions
-- Process mentions within Twitter API rate limits (smart queuing)
-- Build foundation for future intelligent conversation capabilities
+- **Acknowledge Content Curation**: Thank users who share valuable tweets, articles, and discoveries
+- **Context-Aware Responses**: Reference specific content, authors, and topics in replies
+- **Community Building**: Connect users with original content creators through intelligent attribution
+- **Content Discovery**: Automatically capture and store shared content for community curation
+- **Intelligent Prioritization**: Process mentions efficiently within API rate limits
 
 ## ⚡ Current Characteristics
 
 ### **Priority Level**: CRITICAL
 
-- **Response Time**: Rate-limit dependent (currently processes ~17 mentions/day max)
-- **Triggers**: @mentions on Twitter
-- **Personality**: Simple, friendly acknowledgment
-- **Execution**: Single-run cycles (run → process → terminate → repeat)
+- **Response Time**: ~180 seconds per cycle with intelligent processing
+- **Triggers**: @mentions on Twitter (especially content sharing)
+- **Personality**: Grateful, curious, community-minded with context awareness
+- **Execution**: Continuous loops with rate-limit management and candidate tweet processing
 
 ### **Operational Behavior**
 
-- **Queue-driven**: All mentions stored persistently before processing
-- **Rate-limit-aware**: Only processes when Twitter API allows
+- **Context-driven**: Analyzes shared content to provide intelligent responses
+- **Content-aware**: References specific tweets, authors, and topics in replies
+- **Database-integrated**: Links mentions to candidate tweets for full context
+- **Engagement-aware**: Notes viral content and high-engagement metrics
 - **Crash-resistant**: Queue survives process restarts and failures
 - **Retry-capable**: Failed mentions automatically retry up to 3 times
+
+## 🔧 Current Implementation - Complete Mention Flow
+
+### **📥 Phase 1: Intelligent Mention Fetching**
+
+**Function**: `fetch-mentions.ts`
+
+- **Auto-checkpoint Management**: Reads last processed mention ID from database
+- **Twitter API v2 Integration**: Fetches mentions with includes data (tweets, users, metrics)
+- **Candidate Tweet Storage**: Automatically stores referenced tweets as candidate_tweets
+- **Enhanced Linkage**: Links candidate tweets to their originating mentions via mention_id
+- **Comprehensive Logging**: Tracks linkage quality and processing status
+
+**Key Features**:
+
+- Uses `includes.tweets` and `includes.users` for efficient data capture
+- Stores public metrics (likes, retweets) for engagement analysis
+- Automatic curation scoring (score: 7 for actively shared content)
+- Zero additional API calls needed for referenced tweet details
+
+### **📋 Phase 2: Context-Rich Mention Retrieval**
+
+**Function**: `get-pending-mentions.ts`
+
+- **Status Filtering**: Retrieves mentions by status (pending, processing, completed, failed)
+- **Priority Sorting**: Orders by priority (high to low) and age (oldest first)
+- **Candidate Tweet Context**: Includes related candidate tweets for each mention
+- **Statistics**: Provides counts and processing insights
+- **Enhanced Data Structure**: Full context for intelligent worker responses
+
+**Key Features**:
+
+- Links mentions to their candidate tweets via `discovered_via_mention_id`
+- Provides full tweet content, author, and metrics for context
+- Enables workers to understand what content users are sharing
+- Supports batch processing with configurable limits
+
+### **💬 Phase 3: Context-Aware Reply Processing**
+
+**Function**: `reply-mention.ts`
+
+- **Intelligent Posting**: Uses mention_id and reply_text to post contextual responses
+- **Status Management**: Automatically marks mentions as 'completed' in database
+- **Engagement Tracking**: Records all reply actions in engaged_tweets table
+- **Error Handling**: Graceful failure with detailed logging and retry capability
+
+**Key Features**:
+
+- References specific content and authors in responses
+- Shows understanding of shared content topics and engagement levels
+- Creates community connections between users and content creators
+- Maintains Twitter character limits while maximizing context
+
+### **🤖 Phase 4: Orchestrated Worker Logic**
+
+**Worker**: `mentions-worker.ts`
+
+- **Smart Flow Management**: Processes existing queue before fetching new mentions
+- **Context-Aware Responses**: Uses candidate tweet data for intelligent replies
+- **Rate Limit Optimization**: Respects Twitter API limits with efficient processing
+- **Continuous Operation**: Runs in loops with 180-second intervals
+
+**Current Workflow**:
+
+1. **Assessment**: Check pending mentions queue status
+2. **Conditional Fetch**: Only fetch new mentions if queue is low (<2 mentions)
+3. **Context Processing**: Analyze mentions with their candidate tweet context
+4. **Intelligent Reply**: Generate context-aware responses referencing specific content
+5. **Status Update**: Mark mentions as completed and track engagement
+
+## 🎯 **Response Examples (Current Implementation)**
+
+### **Content Sharing with Context**
+
+```
+User: "@glitchbot_ai check this out!"
+Referenced: @sama's tweet about neural scaling laws (342 likes, 89 retweets)
+Bot: "Fascinating research from @sama on neural scaling! Thanks for flagging
+      this @user, the implications for AI development are huge 🤖"
+```
+
+### **High Engagement Content**
+
+```
+User: "@glitchbot_ai this might interest you"
+Referenced: @elonmusk's Tesla AI update (1.2K+ likes)
+Bot: "Wow @user, that Tesla AI update from @elonmusk is getting serious
+      traction (1.2K+ likes)! Thanks for bringing it to my attention 🔥"
+```
+
+### **Direct Questions (No Referenced Content)**
+
+```
+User: "@glitchbot_ai what do you think about AI safety?"
+Bot: "Great question about AI safety @user! It's crucial we develop
+      responsibly 🤖"
+```
 
 ## 🔧 Current Functions (Implemented)
 
