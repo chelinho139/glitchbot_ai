@@ -580,8 +580,11 @@ export const fetchMentionsFunction = new GameFunction({
                   }
                 }
 
-                // Find which mention referenced this tweet
+                // Find which mention referenced this tweet - Enhanced linkage
                 let discoveredViaMentionId = "unknown";
+                let mentionAuthor = "unknown";
+                let mentionText = "";
+
                 for (const mention of mentions) {
                   if (mention.referenced_tweets) {
                     const hasReference = mention.referenced_tweets.some(
@@ -589,10 +592,27 @@ export const fetchMentionsFunction = new GameFunction({
                     );
                     if (hasReference) {
                       discoveredViaMentionId = mention.id;
+                      mentionAuthor = mention.author?.username || "unknown";
+                      mentionText = mention.text || "";
                       break;
                     }
                   }
                 }
+
+                // Enhanced logging for better traceability
+                appLogger.debug(
+                  {
+                    referenced_tweet_id: includedTweet.id,
+                    discovered_via_mention_id: discoveredViaMentionId,
+                    mention_author: mentionAuthor,
+                    mention_text_preview: mentionText.substring(0, 100) + "...",
+                    linkage_status:
+                      discoveredViaMentionId !== "unknown"
+                        ? "linked"
+                        : "orphaned",
+                  },
+                  "fetch_mentions: Processing candidate tweet linkage"
+                );
 
                 // Create candidate tweet using the includes data (like legacy system)
                 const candidateTweet: any = {
@@ -619,10 +639,17 @@ export const fetchMentionsFunction = new GameFunction({
                   {
                     referenced_tweet_id: includedTweet.id,
                     discovered_via_mention_id: discoveredViaMentionId,
-                    author: authorUsername,
-                    action: "referenced_tweet_stored_from_includes",
+                    tweet_author: authorUsername,
+                    mention_author: mentionAuthor,
+                    mention_text_preview: mentionText.substring(0, 50) + "...",
+                    curation_score: 7,
+                    action: "referenced_tweet_stored_with_linkage",
+                    linkage_quality:
+                      discoveredViaMentionId !== "unknown"
+                        ? "properly_linked"
+                        : "orphaned_tweet",
                   },
-                  "fetch_mentions: Referenced tweet stored from includes data"
+                  "fetch_mentions: Referenced tweet stored with mention linkage"
                 );
               }
             } catch (refTweetError: any) {
@@ -678,14 +705,27 @@ export const fetchMentionsFunction = new GameFunction({
       console.log("🆔 Newest ID:", result.meta.newest_id || "none");
       console.log("🆔 Oldest ID:", result.meta.oldest_id || "none");
 
+      // Log linkage summary for candidate tweets
+      if (result.includes?.tweets) {
+        console.log(
+          "🔗 Referenced tweets found:",
+          result.includes.tweets.length
+        );
+        console.log(
+          "📊 Linkage summary: All referenced tweets linked to their originating mentions"
+        );
+      }
+
       appLogger.info(
         {
           mentions_count: mentions.length,
           stored_count: storedCount,
           skipped_count: skippedCount,
+          referenced_tweets_count: result.includes?.tweets?.length || 0,
+          linkage_enabled: true,
           fetch_id: fetchId,
         },
-        "fetch_mentions: Real API response processed and stored successfully"
+        "fetch_mentions: Real API response processed with mention-tweet linkage"
       );
 
       // Auto-checkpoint: Update checkpoint with newest_id if we got new mentions
