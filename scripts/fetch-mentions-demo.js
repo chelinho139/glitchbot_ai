@@ -8,7 +8,7 @@ require("dotenv").config();
 
 const {
   default: fetchMentionsFunction,
-} = require("../src/functions/atomic/social/twitter/fetch-mentions");
+} = require("../src/functions/mentions/fetch-mentions");
 
 async function testFetchMentions() {
   console.log("🧪 Testing fetch_mentions with max_results: 5");

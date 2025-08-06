@@ -5,12 +5,16 @@
   "main": "dist/index.js",
   "scripts": {
     "dev": "ts-node src/index.ts",
+    "joke": "ts-node src/joke-agent.ts",
     "build": "tsc",
     "start": "node dist/index.js",
+    "start:v2": "node dist/index-v2.js",
+    "start:joke": "node dist/joke-agent.js",
+    "start:glitchbot": "node dist/glitchbot-v2-agent.js",
     "test": "npx ts-node tests/test-runner.ts",
     "test:verbose": "npx ts-node tests/test-runner.ts --verbose",
     "test:pattern": "npx ts-node tests/test-runner.ts",
-    "test:fetch-mentions": "npx ts-node tests/functions/atomic/social/fetch-mentions.test.ts",
+    "test:fetch-mentions": "npx ts-node tests/functions/mentions/fetch-mentions.test.ts",
     "test:functions": "npx ts-node tests/test-runner.ts functions",
     "test:workers": "npx ts-node tests/test-runner.ts workers",
     "test:integration": "npx ts-node tests/test-runner.ts integration",
@@ -27,7 +31,7 @@
     "validate": "npm run build && node scripts/validate-system.js",
     "init:checkpoint": "npm run build && node scripts/init-mention-checkpoint.js",
     "clear:rates": "npm run build && node scripts/clear-rate-limits.js",
-    "worker:mentions": "npm run build && node -e \"const {DatabaseManager} = require('./dist/lib/database-manager'); const GlitchBotDB = require('./dist/lib/db').default; const {MentionsWorker} = require('./dist/workers/twitter/mentions-worker'); const dbManager = new DatabaseManager('./glitchbot.db'); const db = new GlitchBotDB(dbManager); const worker = new MentionsWorker(db); worker.execute().then(() => process.exit(0));\""
+    "worker:mentions": "npm run build && node -e \"const mentionsWorker = require('./dist/workers/mentions-worker').default; console.log('Starting mentions worker...'); mentionsWorker.execute().then(() => { console.log('Worker completed'); process.exit(0); }).catch(e => { console.error('Worker failed:', e); process.exit(1); });\""
   },
   "dependencies": {
     "@virtuals-protocol/game": "^0.1.14",

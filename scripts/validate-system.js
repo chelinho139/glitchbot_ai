@@ -91,10 +91,10 @@ async function validateSystem() {
     console.log("\n🎮 Testing GameFunction structure...");
     const {
       storePendingMentionsFunction,
-    } = require("../dist/functions/atomic/utilities/store-pending-mentions");
+    } = require("../dist/functions/others/legacy/store-pending-mentions");
     const {
       getProcessableMentionsFunction,
-    } = require("../dist/functions/atomic/utilities/get-processable-mentions");
+    } = require("../dist/functions/others/legacy/get-processable-mentions");
 
     // Validate GameFunction structure
     const functions = [

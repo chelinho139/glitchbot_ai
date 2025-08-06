@@ -4,8 +4,8 @@ import {
   ExecutableGameFunctionResponse,
   ExecutableGameFunctionStatus,
 } from "@virtuals-protocol/game";
-import { createRateLimitedTwitterClient } from "../../../../lib/rate-limited-twitter-client";
-import appLogger from "../../../../lib/log";
+import { createRateLimitedTwitterClient } from "../../../lib/rate-limited-twitter-client";
+import appLogger from "../../../lib/log";
 
 export interface ReplyResult {
   success: boolean;

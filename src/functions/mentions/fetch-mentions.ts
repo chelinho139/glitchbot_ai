@@ -13,8 +13,17 @@ import {
   ExecutableGameFunctionResponse,
   ExecutableGameFunctionStatus,
 } from "@virtuals-protocol/game";
-import appLogger from "../../../../lib/log";
-import { createRateLimitedTwitterClient } from "../../../../lib/rate-limited-twitter-client";
+import appLogger from "../../lib/log";
+import { createRateLimitedTwitterClient } from "../../lib/rate-limited-twitter-client";
+import GlitchBotDB from "../../lib/db";
+
+// Helper function for priority calculation
+function calculatePriority(): number {
+  // Simple priority calculation - everyone gets same priority for now
+  // Priority 5 = default priority for all mentions
+  // This can be enhanced later with intent analysis or other factors
+  return 5; // Default priority for all mentions
+}
 
 // Define the structure for Twitter user/author data
 export interface TwitterAuthor {
@@ -80,6 +89,11 @@ export interface FetchMentionsResult {
     result_count: number;
     next_token?: string;
   };
+  storage: {
+    stored_count: number;
+    skipped_count: number;
+    total_fetched: number;
+  };
   rate_limit?: {
     limit: number;
     remaining: number;
@@ -138,13 +152,8 @@ export interface FetchMentionsResult {
 export const fetchMentionsFunction = new GameFunction({
   name: "fetch_mentions",
   description:
-    "Fetch recent mentions from Twitter API v2 with comprehensive error handling, rate limiting, and automatic user ID caching",
+    "Fetch recent mentions from Twitter API v2 with automatic checkpoint management and storage. Always reads stored checkpoint and fetches only new mentions. Automatically stores all fetched mentions in the pending_mentions queue for processing. Updates checkpoint after successful fetch. Returns count of mentions stored. Includes comprehensive error handling, rate limiting, and automatic user ID caching",
   args: [
-    {
-      name: "since_id",
-      description:
-        "Only fetch tweets after this ID to avoid duplicates (optional)",
-    },
     {
       name: "max_results",
       description: "Maximum number of mentions to fetch (5-100, default: 50)",
@@ -153,11 +162,13 @@ export const fetchMentionsFunction = new GameFunction({
   executable: async (args, logger) => {
     const startTime = Date.now();
 
+    console.log("\n🚀 fetch_mentions FUNCTION CALLED!");
+    console.log("📥 Input args:", { max_results: args.max_results });
+
     try {
       logger("Starting mention fetch operation");
       appLogger.info(
         {
-          since_id: args.since_id,
           max_results: args.max_results,
         },
         "fetch_mentions: Starting operation"
@@ -189,17 +200,55 @@ export const fetchMentionsFunction = new GameFunction({
         "fetch_mentions: Twitter client created successfully with GAME token"
       );
 
+      // Auto-checkpoint: Always read last checkpoint from database
+      console.log("🗂️ Reading checkpoint from database...");
+      let effectiveSinceId: string | undefined;
+      try {
+        const db = new GlitchBotDB();
+        const checkpoint = db.database
+          .prepare(
+            "SELECT value FROM mention_state WHERE key = 'last_since_id'"
+          )
+          .get() as any;
+
+        if (checkpoint?.value) {
+          effectiveSinceId = checkpoint.value;
+          console.log("✅ Found checkpoint:", effectiveSinceId);
+          appLogger.info(
+            { checkpoint_since_id: effectiveSinceId },
+            "fetch_mentions: Using stored checkpoint as since_id"
+          );
+        } else {
+          console.log("ℹ️ No checkpoint found, fetching all recent mentions");
+          appLogger.info(
+            "fetch_mentions: No checkpoint found, fetching all recent mentions"
+          );
+        }
+      } catch (checkpointError: any) {
+        console.log("⚠️ Checkpoint read error:", checkpointError.message);
+        appLogger.warn(
+          { error: checkpointError.message },
+          "fetch_mentions: Failed to read checkpoint, proceeding without since_id"
+        );
+      }
+
       // Make the API call using composite method (tracks both get_user and fetch_mentions rate limits)
+      console.log("🐦 Making Twitter API call...");
+      console.log("📋 API options:", {
+        max_results: maxResults,
+        since_id: effectiveSinceId || "none",
+      });
       let apiResponse;
       try {
         const mentionsOptions: any = {
           max_results: maxResults,
         };
-        if (args.since_id) {
-          mentionsOptions.since_id = args.since_id;
+        if (effectiveSinceId) {
+          mentionsOptions.since_id = effectiveSinceId;
         }
 
         apiResponse = await twitterClient.fetchUserMentions(mentionsOptions);
+        console.log("✅ Twitter API call successful!");
 
         appLogger.info(
           {
@@ -211,8 +260,11 @@ export const fetchMentionsFunction = new GameFunction({
           "fetch_mentions: Composite API call completed successfully (dual rate limit tracking)"
         );
       } catch (apiError: any) {
+        console.log("❌ Twitter API Error:", apiError.message);
+        console.log("🔢 Error code:", apiError.code);
         // Handle Twitter API errors
         if (apiError.code === 429) {
+          console.log("⏰ Rate limit exceeded!");
           appLogger.warn(
             {
               error: apiError.message,
@@ -260,8 +312,16 @@ export const fetchMentionsFunction = new GameFunction({
         }
       }
 
-      // Process real API response
+      // Process real API response and store mentions
       const mentions: TwitterMention[] = [];
+      let storedCount = 0;
+      let skippedCount = 0;
+      const fetchId = `fetch_${Date.now()}_${Math.random()
+        .toString(36)
+        .substr(2, 9)}`;
+
+      // Initialize database for storage
+      const db = new GlitchBotDB();
 
       if (
         apiResponse.data &&
@@ -363,6 +423,63 @@ export const fetchMentionsFunction = new GameFunction({
           }
 
           mentions.push(mention);
+
+          // Store mention in database
+          try {
+            const priority = calculatePriority();
+            const authorUsername = mention.author?.username || "unknown";
+
+            // Prepare referenced_tweets data as JSON string
+            const referencedTweetsJson = mention.referenced_tweets
+              ? JSON.stringify(mention.referenced_tweets)
+              : null;
+
+            // Insert or replace (in case of duplicate fetch)
+            db.database
+              .prepare(
+                `
+              INSERT OR REPLACE INTO pending_mentions 
+              (mention_id, author_id, author_username, text, created_at, 
+               status, priority, original_fetch_id, referenced_tweets)
+              VALUES (?, ?, ?, ?, ?, 'pending', ?, ?, ?)
+            `
+              )
+              .run([
+                mention.id,
+                mention.author_id,
+                authorUsername,
+                mention.text,
+                mention.created_at,
+                priority,
+                fetchId,
+                referencedTweetsJson,
+              ]);
+
+            // Note: Referenced tweets will be processed from apiResponse.includes.tweets
+            // after all mentions are processed, using the existing includes data
+            // instead of making additional API calls
+
+            storedCount++;
+
+            appLogger.debug(
+              {
+                mention_id: mention.id,
+                author: authorUsername,
+                priority,
+                text_preview: (mention.text || "").substring(0, 50) + "...",
+              },
+              "fetch_mentions: Stored mention in pending queue"
+            );
+          } catch (storageError: any) {
+            appLogger.error(
+              {
+                mention_id: mention.id,
+                error: storageError.message,
+              },
+              "fetch_mentions: Failed to store mention in database"
+            );
+            skippedCount++;
+          }
         }
       }
 
@@ -402,6 +519,11 @@ export const fetchMentionsFunction = new GameFunction({
       const result = {
         mentions,
         meta,
+        storage: {
+          stored_count: storedCount,
+          skipped_count: skippedCount,
+          total_fetched: mentions.length,
+        },
       } as FetchMentionsResult;
 
       if (rateLimitInfo) {
@@ -412,7 +534,7 @@ export const fetchMentionsFunction = new GameFunction({
       if (apiResponse.data.includes) {
         result.includes = {};
 
-        // Process included tweets (referenced tweets)
+        // Process included tweets (referenced tweets) and store as candidate tweets
         if (apiResponse.data.includes.tweets) {
           result.includes.tweets = apiResponse.data.includes.tweets.map(
             (tweet: any) => ({
@@ -435,6 +557,85 @@ export const fetchMentionsFunction = new GameFunction({
               context_annotations: tweet.context_annotations,
             })
           );
+
+          // Store referenced tweets as candidate tweets using the includes data
+          for (const includedTweet of apiResponse.data.includes.tweets) {
+            try {
+              // Check if this tweet is already stored as a candidate
+              const existingCandidate = db.database
+                .prepare(
+                  `SELECT tweet_id FROM candidate_tweets WHERE tweet_id = ?`
+                )
+                .get(includedTweet.id);
+
+              if (!existingCandidate) {
+                // Find the author from includes.users
+                let authorUsername = "unknown";
+                if (apiResponse.data.includes.users) {
+                  const author = apiResponse.data.includes.users.find(
+                    (user: any) => user.id === includedTweet.author_id
+                  );
+                  if (author) {
+                    authorUsername = author.username;
+                  }
+                }
+
+                // Find which mention referenced this tweet
+                let discoveredViaMentionId = "unknown";
+                for (const mention of mentions) {
+                  if (mention.referenced_tweets) {
+                    const hasReference = mention.referenced_tweets.some(
+                      (ref: any) => ref.id === includedTweet.id
+                    );
+                    if (hasReference) {
+                      discoveredViaMentionId = mention.id;
+                      break;
+                    }
+                  }
+                }
+
+                // Create candidate tweet using the includes data (like legacy system)
+                const candidateTweet: any = {
+                  tweet_id: includedTweet.id,
+                  author_id: includedTweet.author_id,
+                  author_username: authorUsername,
+                  content: includedTweet.text,
+                  created_at: includedTweet.created_at,
+                  discovered_via_mention_id: discoveredViaMentionId,
+                  discovery_timestamp: new Date().toISOString(),
+                  curation_score: 7, // Higher score since it was actively shared
+                };
+
+                // Add public_metrics if available
+                if (includedTweet.public_metrics) {
+                  candidateTweet.public_metrics = JSON.stringify(
+                    includedTweet.public_metrics
+                  );
+                }
+
+                db.addCandidateTweet(candidateTweet);
+
+                appLogger.info(
+                  {
+                    referenced_tweet_id: includedTweet.id,
+                    discovered_via_mention_id: discoveredViaMentionId,
+                    author: authorUsername,
+                    action: "referenced_tweet_stored_from_includes",
+                  },
+                  "fetch_mentions: Referenced tweet stored from includes data"
+                );
+              }
+            } catch (refTweetError: any) {
+              appLogger.warn(
+                {
+                  referenced_tweet_id: includedTweet.id,
+                  error: refTweetError.message,
+                },
+                "fetch_mentions: Failed to store referenced tweet from includes"
+              );
+              // Don't fail the main operation, just log the warning
+            }
+          }
         }
 
         // Process included users (we already have this logic above, but keep it here too)
@@ -470,25 +671,91 @@ export const fetchMentionsFunction = new GameFunction({
         }
       }
 
+      console.log("📊 Processing complete!");
+      console.log("📈 Mentions found:", mentions.length);
+      console.log("💾 Mentions stored:", storedCount);
+      console.log("⚠️ Mentions skipped:", skippedCount);
+      console.log("🆔 Newest ID:", result.meta.newest_id || "none");
+      console.log("🆔 Oldest ID:", result.meta.oldest_id || "none");
+
       appLogger.info(
-        { mentions_count: mentions.length },
-        "fetch_mentions: Real API response processed successfully"
+        {
+          mentions_count: mentions.length,
+          stored_count: storedCount,
+          skipped_count: skippedCount,
+          fetch_id: fetchId,
+        },
+        "fetch_mentions: Real API response processed and stored successfully"
       );
+
+      // Auto-checkpoint: Update checkpoint with newest_id if we got new mentions
+      if (result.meta.newest_id && result.mentions.length > 0) {
+        console.log(
+          "💾 Updating checkpoint with newest ID:",
+          result.meta.newest_id
+        );
+        try {
+          const db = new GlitchBotDB();
+          const now = new Date().toISOString();
+
+          // Update the checkpoint
+          db.database
+            .prepare(
+              "INSERT OR REPLACE INTO mention_state (key, value, updated_at) VALUES ('last_since_id', ?, ?)"
+            )
+            .run(result.meta.newest_id, now);
+
+          // Also update last fetch time
+          db.database
+            .prepare(
+              "INSERT OR REPLACE INTO mention_state (key, value, updated_at) VALUES ('last_fetch_time', ?, ?)"
+            )
+            .run(now, now);
+
+          appLogger.info(
+            {
+              new_checkpoint: result.meta.newest_id,
+              updated_at: now,
+            },
+            "fetch_mentions: Checkpoint updated automatically"
+          );
+        } catch (checkpointError: any) {
+          appLogger.warn(
+            {
+              error: checkpointError.message,
+              newest_id: result.meta.newest_id,
+            },
+            "fetch_mentions: Failed to update checkpoint, but fetch succeeded"
+          );
+        }
+      }
 
       const executionTime = Date.now() - startTime;
 
       appLogger.info(
         {
           mentions_count: result.mentions.length,
+          stored_count: result.storage.stored_count,
+          skipped_count: result.storage.skipped_count,
           execution_time_ms: executionTime,
           rate_limit_remaining: result.rate_limit?.remaining,
           newest_id: result.meta.newest_id,
+          fetch_id: fetchId,
         },
         "fetch_mentions: Operation completed successfully"
       );
 
       logger(
-        `Fetched ${result.mentions.length} mentions successfully in ${executionTime}ms`
+        `Fetched ${result.mentions.length} mentions, stored ${result.storage.stored_count} in queue (${result.storage.skipped_count} skipped) in ${executionTime}ms`
+      );
+
+      console.log("🎯 FUNCTION COMPLETED SUCCESSFULLY!");
+      console.log("⏱️ Execution time:", executionTime + "ms");
+      console.log("📤 Returning:", result.mentions.length, "mentions");
+      console.log(
+        "💾 Stored in queue:",
+        result.storage.stored_count,
+        "mentions"
       );
 
       return new ExecutableGameFunctionResponse(
@@ -497,6 +764,10 @@ export const fetchMentionsFunction = new GameFunction({
       );
     } catch (error: any) {
       const executionTime = Date.now() - startTime;
+
+      console.log("💥 FUNCTION FAILED!");
+      console.log("❌ Unexpected error:", error.message);
+      console.log("⏱️ Execution time:", executionTime + "ms");
 
       appLogger.error(
         {

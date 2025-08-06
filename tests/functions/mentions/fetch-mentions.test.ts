@@ -5,16 +5,12 @@
  * Validates Twitter API integration, data structure, and error handling
  */
 
-import {
-  createTestSuite,
-  assert,
-  testHelpers,
-} from "../../../helpers/test-utils";
+import { createTestSuite, assert, testHelpers } from "../../helpers/test-utils";
 
 // Import function to test
 const {
   default: fetchMentionsFunction,
-} = require("../../../../src/functions/atomic/social/twitter/fetch-mentions");
+} = require("../../../src/functions/mentions/fetch-mentions");
 
 const suite = createTestSuite("fetch_mentions GameFunction");
 

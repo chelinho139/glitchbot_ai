@@ -75,9 +75,26 @@ export class DatabaseManager {
         intent_type TEXT,
         confidence REAL,
         original_fetch_id TEXT,
-        worker_id TEXT
+        worker_id TEXT,
+        referenced_tweets TEXT
       );
     `);
+
+    // Add referenced_tweets column to existing tables (migration)
+    try {
+      this.db.exec(
+        `ALTER TABLE pending_mentions ADD COLUMN referenced_tweets TEXT`
+      );
+      appLogger.debug(
+        "Added referenced_tweets column to pending_mentions table"
+      );
+    } catch (error: any) {
+      // Column already exists or other error - that's fine
+      appLogger.debug(
+        "referenced_tweets column already exists or migration failed (this is expected)"
+      );
+    }
+
     appLogger.debug("Queue schema created (pending_mentions)");
   }
 

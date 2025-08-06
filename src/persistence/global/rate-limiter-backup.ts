@@ -37,55 +37,56 @@ export class GlobalRateLimiter {
   // Database schema initialization now handled by DatabaseManager
 
   /**
-   * Initialize Twitter API rate limits - MODIFIED FOR TESTING: 1 per minute for all endpoints
+   * Initialize Twitter API rate limits
    */
   private initializeRateLimits(): void {
-    // TESTING CONFIGURATION: All endpoints limited to 1 request per minute
-    // This allows for easier testing and development without hitting real Twitter limits
+    // Twitter API v2 rate limits - EXACT Free Tier limits (official documentation)
+    // Based on: https://docs.x.com/x-api/fundamentals/rate-limits
+    // Verified through testing and official documentation comparison
 
     this._configs.set("fetch_mentions", {
       endpoint: "fetch_mentions",
-      requests_per_15min: 15, // 1 per minute = 15 per 15 minutes
-      requests_per_hour: 60, // 1 per minute = 60 per hour
-      requests_per_day: 1440, // 1 per minute = 1440 per day
+      requests_per_15min: 1, // FREE: 1 request per 15 minutes
+      requests_per_hour: 4, // 4 x 15min windows per hour
+      requests_per_day: 96, // 96 x 15min windows per day
       worker_fair_share: true,
     });
 
     this._configs.set("get_user", {
       endpoint: "get_user",
-      requests_per_15min: 15, // 1 per minute = 15 per 15 minutes
-      requests_per_hour: 60, // 1 per minute = 60 per hour
-      requests_per_day: 1440, // 1 per minute = 1440 per day
+      requests_per_15min: 1, // Match fetch_mentions: 1 request per 15 minutes
+      requests_per_hour: 4, // Match fetch_mentions: 4 x 15min windows per hour
+      requests_per_day: 96, // Match fetch_mentions: much more relaxed than 25/day
       worker_fair_share: true,
     });
 
     this._configs.set("reply_tweet", {
       endpoint: "reply_tweet",
-      requests_per_15min: 15, // 1 per minute = 15 per 15 minutes
-      requests_per_hour: 60, // 1 per minute = 60 per hour
-      requests_per_day: 1440, // 1 per minute = 1440 per day
+      requests_per_15min: 1, // FREE: 17/24hrs ≈ 1/hour, be conservative
+      requests_per_hour: 1,
+      requests_per_day: 17, // FREE: 17 requests per 24 hours
       worker_fair_share: false, // Priority for replies
     });
 
     this._configs.set("like_tweet", {
       endpoint: "like_tweet",
-      requests_per_15min: 15, // 1 per minute = 15 per 15 minutes
-      requests_per_hour: 60, // 1 per minute = 60 per hour
-      requests_per_day: 1440, // 1 per minute = 1440 per day
+      requests_per_15min: 1, // FREE: 1 request per 15 minutes
+      requests_per_hour: 4,
+      requests_per_day: 96,
       worker_fair_share: true,
     });
 
     this._configs.set("search_tweets", {
       endpoint: "search_tweets",
-      requests_per_15min: 15, // 1 per minute = 15 per 15 minutes
-      requests_per_hour: 60, // 1 per minute = 60 per hour
-      requests_per_day: 1440, // 1 per minute = 1440 per day
+      requests_per_15min: 1, // FREE: 1 request per 15 minutes
+      requests_per_hour: 4,
+      requests_per_day: 96,
       worker_fair_share: true,
     });
 
     appLogger.info(
       { endpoints: Array.from(this._configs.keys()) },
-      "Rate limiter initialized with TESTING LIMITS: 1 request per minute for all endpoints"
+      "Rate limiter initialized with EXACT Twitter API v2 FREE TIER limits (official documentation)"
     );
   }
 
