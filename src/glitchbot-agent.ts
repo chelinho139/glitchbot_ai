@@ -5,7 +5,7 @@ import mentionsWorker from "./workers/mentions-worker";
 dotenv.config();
 
 async function main() {
-  console.log("🤖 Starting GlitchBot v2...");
+  console.log("🤖 Starting GlitchBot...");
 
   const apiKey = process.env.VIRTUALS_API_KEY || process.env.GAME_API_KEY;
   if (!apiKey) {
@@ -26,8 +26,18 @@ async function main() {
 
   // Initialize and start
   await agent.init();
-  console.log("✅ GlitchBot v2 initialized! Running continuously...");
+  console.log("✅ GlitchBot initialized! Running continuously...");
   console.log("Press Ctrl+C to stop");
+
+  // Get timeout values from environment variables
+  const stepInterval = parseInt(process.env.AGENT_STEP_INTERVAL || "180000"); // Default: 3 minutes
+  const errorInterval = parseInt(process.env.AGENT_ERROR_INTERVAL || "180000"); // Default: 3 minutes
+  const verboseLogging = process.env.AGENT_VERBOSE === "true"; // Default: false
+
+  console.log(`⚙️ Agent configuration:`);
+  console.log(`   Step interval: ${stepInterval / 1000}s`);
+  console.log(`   Error interval: ${errorInterval / 1000}s`);
+  console.log(`   Verbose logging: ${verboseLogging}`);
 
   // Use step method with proper error handling and throttling
   let stepCount = 0;
@@ -36,18 +46,18 @@ async function main() {
     console.log("Step #", stepCount); // Before every step!
     stepCount++;
     try {
-      await agent.step({ verbose: false });
-      await new Promise((r) => setTimeout(r, 180000)); // throttle or heartbeat delay
+      await agent.step({ verbose: verboseLogging });
+      await new Promise((r) => setTimeout(r, stepInterval)); // configurable delay
     } catch (err) {
       console.error("Agent step error:", err);
-      await new Promise((r) => setTimeout(r, 180000)); // longer delay on error
+      await new Promise((r) => setTimeout(r, errorInterval)); // configurable error delay
     }
   }
 }
 
 // Graceful shutdown
 process.on("SIGINT", () => {
-  console.log("\n👋 GlitchBot v2 shutting down...");
+  console.log("\n👋 GlitchBot shutting down...");
   process.exit(0);
 });
 
