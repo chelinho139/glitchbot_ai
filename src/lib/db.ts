@@ -74,6 +74,34 @@ class GlitchBotDB {
     stmt.run(key, value);
   }
 
+  // Timeline state management methods
+
+  // Get timeline state value (e.g., last_newest_id, last_next_token)
+  getTimelineState(key: string): string | null {
+    const stmt = this.dbManager.database.prepare(
+      "SELECT value FROM timeline_state WHERE key = ?"
+    );
+    const result = stmt.get(key) as { value: string } | undefined;
+    return result?.value || null;
+  }
+
+  // Set timeline state value
+  setTimelineState(key: string, value: string): void {
+    const stmt = this.dbManager.database.prepare(
+      "INSERT OR REPLACE INTO timeline_state (key, value, updated_at) VALUES (?, ?, ?)"
+    );
+    const now = new Date().toISOString();
+    stmt.run(key, value, now);
+  }
+
+  // Clear timeline state (useful for resetting pagination)
+  clearTimelineState(key: string): void {
+    const stmt = this.dbManager.database.prepare(
+      "DELETE FROM timeline_state WHERE key = ?"
+    );
+    stmt.run(key);
+  }
+
   // Candidate tweet methods for Phase 2B storage
 
   // Add candidate tweet with full metadata

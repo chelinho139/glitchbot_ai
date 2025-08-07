@@ -47,12 +47,20 @@ export class DatabaseManager {
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       );
       
+      CREATE TABLE IF NOT EXISTS timeline_state (
+        key TEXT PRIMARY KEY,
+        value TEXT,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+      
       CREATE TABLE IF NOT EXISTS cadence (
         key TEXT PRIMARY KEY,
         value TEXT
       );
     `);
-    appLogger.debug("Core schema created (mention_state, cadence)");
+    appLogger.debug(
+      "Core schema created (mention_state, timeline_state, cadence)"
+    );
   }
 
   /**

@@ -1,9 +1,9 @@
 #!/usr/bin/env node
 // Daily-price estimate using CryptoCompare histoday (VIRTUAL/USD), paginated in 2000-day chunks.
+// Fetches trade data from the Virtuals Protocol API.
 
-import fs from "node:fs/promises";
-import path from "node:path";
-import process from "node:process";
+const fs = require("node:fs/promises");
+const path = require("node:path");
 
 const FSYM = "VIRTUAL"; // Virtuals Protocol on CryptoCompare
 const TSYM = "USD";
@@ -111,15 +111,16 @@ function findUSDForDayOrPrev(dayStr, times, dayCloseMap) {
 }
 
 async function main() {
-  const inputPath = process.argv[2];
-  if (!inputPath) {
-    console.error("Usage: node scripts/get_volume_daily_cc.js <trades.json>");
-    process.exit(1);
-  }
+  const tokenAddress =
+    process.argv[2] || "0xD8e4427454d8ac0adFD641FF1392694930407eA4";
 
-  // 1) Read trades
-  const raw = await fs.readFile(path.resolve(inputPath), "utf8");
-  const parsed = JSON.parse(raw);
+  console.log(`Fetching trades for token: ${tokenAddress}`);
+
+  // 1) Fetch trades from API
+  const apiUrl = `https://vp-api.virtuals.io/vp-api/trades?tokenAddress=${tokenAddress}&limit=-1&chainID=&txSender=&cursor=&tradeSideOption=0`;
+  console.log(`API URL: ${apiUrl}`);
+
+  const parsed = await fetchJSON(apiUrl);
   const trades = parsed?.data?.Trades ?? [];
   if (!Array.isArray(trades) || trades.length === 0) {
     console.error("No trades found at data.Trades");
@@ -192,6 +193,7 @@ async function main() {
   await fs.writeFile(outPath, outLines.join("\n"), "utf8");
 
   console.log("Done.");
+  console.log(`Token Address: ${tokenAddress}`);
   console.log(`Trades: ${trades.length}`);
   console.log(`Matched with DAILY price: ${matched}`);
   if (unmatched)

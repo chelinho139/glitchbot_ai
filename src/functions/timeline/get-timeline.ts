@@ -13,6 +13,7 @@ import {
 } from "@virtuals-protocol/game";
 import appLogger from "../../lib/log";
 import { createRateLimitedTwitterClient } from "../../lib/rate-limited-twitter-client";
+import GlitchBotDB from "../../lib/db";
 
 // Define the structure for timeline tweet data
 export interface TimelineTweet {
@@ -87,10 +88,25 @@ export const getTimelineFunction = new GameFunction({
     // Set constants for timeline fetch
     const MAX_RESULTS = 10;
     const EXCLUDE = "replies";
-    const PAGINATION_TOKEN = undefined;
+    let PAGINATION_TOKEN = undefined;
 
     try {
       logger("Starting home timeline fetch operation");
+
+      // Initialize database for state management
+      const db = new GlitchBotDB();
+
+      // Check previous timeline state for pagination logic
+      const lastNewestId = db.getTimelineState("last_newest_id");
+      const lastNextToken = db.getTimelineState("last_next_token");
+
+      appLogger.info(
+        {
+          last_newest_id: lastNewestId || "none",
+          last_next_token: lastNextToken ? "present" : "none",
+        },
+        "get_timeline: Loaded previous timeline state"
+      );
       appLogger.info(
         {
           max_results: MAX_RESULTS,
@@ -150,8 +166,15 @@ export const getTimelineFunction = new GameFunction({
         if (EXCLUDE) {
           timelineParams.exclude = EXCLUDE;
         }
-        if (PAGINATION_TOKEN) {
+
+        // Use pagination token if we have one from previous fetch
+        if (lastNextToken) {
+          PAGINATION_TOKEN = lastNextToken;
           timelineParams.pagination_token = PAGINATION_TOKEN;
+          appLogger.info(
+            { pagination_token_used: true },
+            "get_timeline: Using pagination token from previous fetch"
+          );
         }
 
         // Use the home timeline endpoint for recommended tweets
@@ -332,18 +355,85 @@ export const getTimelineFunction = new GameFunction({
         result.rate_limit = rateLimitInfo;
       }
 
+      // State management: Update timeline state for pagination
+      const currentNewestId = result.meta.newest_id;
+      const currentNextToken = result.meta.next_token;
+
+      try {
+        // Determine if we should continue paginating or reset
+        if (currentNewestId && currentNewestId !== lastNewestId) {
+          // New content detected - reset pagination and save new newest_id
+          appLogger.info(
+            {
+              old_newest_id: lastNewestId || "none",
+              new_newest_id: currentNewestId,
+              action: "reset_pagination_new_content",
+            },
+            "get_timeline: New content detected, resetting pagination"
+          );
+
+          // Update newest_id and clear next_token since we have new content
+          db.setTimelineState("last_newest_id", currentNewestId);
+          db.clearTimelineState("last_next_token");
+        } else if (currentNewestId === lastNewestId && currentNextToken) {
+          // Same content - save next_token for pagination
+          appLogger.info(
+            {
+              newest_id: currentNewestId,
+              has_next_token: !!currentNextToken,
+              action: "save_pagination_token",
+            },
+            "get_timeline: Same content detected, saving pagination token"
+          );
+
+          // Save the next_token for future pagination
+          db.setTimelineState("last_next_token", currentNextToken);
+        } else {
+          // No new content and no next_token - end of timeline
+          appLogger.info(
+            {
+              newest_id: currentNewestId,
+              action: "end_of_timeline",
+            },
+            "get_timeline: No new content and no pagination token - reached end"
+          );
+
+          // Clear next_token
+          db.clearTimelineState("last_next_token");
+        }
+
+        // Always update last fetch time
+        const now = new Date().toISOString();
+        db.setTimelineState("last_fetch_time", now);
+      } catch (stateError: any) {
+        appLogger.warn(
+          {
+            error: stateError.message,
+            newest_id: currentNewestId,
+            next_token: currentNextToken ? "present" : "none",
+          },
+          "get_timeline: Failed to update timeline state, but fetch succeeded"
+        );
+      }
+
+      const executionTime = Date.now() - startTime;
+
       appLogger.info(
         {
           tweets_count: tweets.length,
-          execution_time_ms: startTime,
+          execution_time_ms: executionTime,
           rate_limit_remaining: result.rate_limit?.remaining,
           newest_id: result.meta.newest_id,
+          next_token: result.meta.next_token ? "present" : "none",
+          pagination_used: !!PAGINATION_TOKEN,
           exclude_filter: EXCLUDE || "none",
         },
         "get_timeline: Home timeline operation completed successfully"
       );
 
-      logger(`Fetched ${tweets.length} home timeline tweets in ${startTime}ms`);
+      logger(
+        `Fetched ${tweets.length} home timeline tweets in ${executionTime}ms`
+      );
 
       return new ExecutableGameFunctionResponse(
         ExecutableGameFunctionStatus.Done,
