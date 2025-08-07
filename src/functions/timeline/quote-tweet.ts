@@ -3,20 +3,27 @@ import {
   ExecutableGameFunctionResponse,
   ExecutableGameFunctionStatus,
 } from "@virtuals-protocol/game";
+import { createRateLimitedTwitterClient } from "../../lib/rate-limited-twitter-client";
+import GlitchBotDB from "../../lib/db";
+import appLogger from "../../lib/log";
 
 /**
- * Dummy quote-tweet function for testing.
- * Takes a tweet_id and a comment, and prints them to the console.
- * No actual Twitter API call is made.
+ * Quote-tweet function with engagement tracking.
+ * Takes a tweet_id and a comment, checks for duplicates, and posts a real quote tweet via Twitter API.
+ * Records engagement in engaged_quotes table to prevent duplicate quotes.
  */
 const quoteTweetFunction = new GameFunction({
   name: "quote_tweet",
   description:
-    "Quote-tweets a tweet with a comment (dummy, just prints for now)",
+    "Quote-tweets a tweet with a comment using the Twitter API. Includes duplicate prevention by checking engaged_quotes table and rate limiting.",
   args: [
     {
       name: "tweet_id",
       description: "The ID of the tweet to quote",
+    },
+    {
+      name: "username",
+      description: "The username of the tweet author (without @)",
     },
     {
       name: "comment",
@@ -24,20 +31,178 @@ const quoteTweetFunction = new GameFunction({
     },
   ] as const,
   executable: async (args, logger) => {
-    const { tweet_id, comment } = args;
-    if (!tweet_id || !comment) {
+    try {
+      const { tweet_id, username, comment } = args;
+
+      if (!tweet_id || !username || !comment) {
+        return new ExecutableGameFunctionResponse(
+          ExecutableGameFunctionStatus.Failed,
+          "tweet_id, username, and comment are required"
+        );
+      }
+
+      // Create the tweet URL for quoting
+      const tweetUrl = `https://x.com/${username}/status/${tweet_id}`;
+      const fullTweetText = `${comment} ${tweetUrl}`;
+
+      // Validate total tweet length (Twitter limit is 280 characters)
+      if (fullTweetText.length > 280) {
+        appLogger.error(
+          {
+            comment_length: comment.length,
+            url_length: tweetUrl.length,
+            total_length: fullTweetText.length,
+          },
+          "quote_tweet: Tweet with URL exceeds Twitter character limit"
+        );
+        return new ExecutableGameFunctionResponse(
+          ExecutableGameFunctionStatus.Failed,
+          `Tweet too long: ${fullTweetText.length}/280 characters (comment: ${comment.length}, URL: ${tweetUrl.length})`
+        );
+      }
+
+      // Check if tweet was already quoted to avoid duplicates
+      const db = new GlitchBotDB();
+      if (db.isTweetQuoted(tweet_id)) {
+        appLogger.warn(
+          { tweet_id },
+          "quote_tweet: Tweet already quoted, skipping duplicate"
+        );
+        return new ExecutableGameFunctionResponse(
+          ExecutableGameFunctionStatus.Failed,
+          `Tweet ${tweet_id} was already quoted. Avoiding duplicate.`
+        );
+      }
+
+      // Initialize Twitter client
+      const gameToken = process.env.GAME_TWITTER_TOKEN;
+      if (!gameToken) {
+        appLogger.error("quote_tweet: GAME_TWITTER_TOKEN not found");
+        return new ExecutableGameFunctionResponse(
+          ExecutableGameFunctionStatus.Failed,
+          "GAME_TWITTER_TOKEN is required. Set it in your .env file."
+        );
+      }
+
+      const twitterClient = createRateLimitedTwitterClient({
+        gameTwitterAccessToken: gameToken,
+        workerId: "timeline-worker",
+        defaultPriority: "medium",
+      });
+
+      // Post the quote tweet using Twitter API (with URL in text)
+      let apiResponse;
+      try {
+        apiResponse = await twitterClient.v2.tweet(fullTweetText);
+
+        appLogger.info(
+          {
+            original_tweet_id: tweet_id,
+            original_username: username,
+            quote_tweet_id: apiResponse.data.id,
+            comment: comment,
+            tweet_url: tweetUrl,
+            full_tweet_text: fullTweetText,
+            total_length: fullTweetText.length,
+          },
+          "quote_tweet: Quote tweet posted successfully via Twitter API"
+        );
+      } catch (apiError: any) {
+        // Handle Twitter API errors
+        if (apiError.code === 429) {
+          appLogger.warn(
+            {
+              error: apiError.message,
+              tweet_id: tweet_id,
+              reset_time: apiError.rateLimit?.reset
+                ? new Date(apiError.rateLimit.reset * 1000).toISOString()
+                : "unknown",
+            },
+            "quote_tweet: Twitter API rate limit exceeded"
+          );
+          return new ExecutableGameFunctionResponse(
+            ExecutableGameFunctionStatus.Failed,
+            `Rate limit exceeded. Reset at: ${
+              apiError.rateLimit?.reset
+                ? new Date(apiError.rateLimit.reset * 1000).toISOString()
+                : "unknown"
+            }`
+          );
+        } else if (apiError.code >= 500) {
+          appLogger.error(
+            { error: apiError.message, code: apiError.code },
+            "quote_tweet: Twitter API server error"
+          );
+          return new ExecutableGameFunctionResponse(
+            ExecutableGameFunctionStatus.Failed,
+            `Twitter API server error: ${apiError.message}`
+          );
+        } else if (apiError.code === 401) {
+          appLogger.error(
+            { error: apiError.message },
+            "quote_tweet: Twitter API authentication failed"
+          );
+          return new ExecutableGameFunctionResponse(
+            ExecutableGameFunctionStatus.Failed,
+            `Authentication failed: ${apiError.message}. Check your Twitter API credentials.`
+          );
+        } else {
+          appLogger.error(
+            {
+              error: apiError.message,
+              code: apiError.code,
+              data: apiError.data || null,
+              errors: apiError.errors || null,
+              detail: apiError.detail || null,
+              title: apiError.title || null,
+              type: apiError.type || null,
+            },
+            "quote_tweet: Twitter API error with detailed response"
+          );
+          return new ExecutableGameFunctionResponse(
+            ExecutableGameFunctionStatus.Failed,
+            `Twitter API error: ${apiError.message}${
+              apiError.detail ? ` - ${apiError.detail}` : ""
+            }`
+          );
+        }
+      }
+
+      // Record the engagement to prevent future duplicates
+      db.recordQuoteEngagement(tweet_id);
+
+      appLogger.info(
+        {
+          tweet_id,
+          username,
+          quote_tweet_id: apiResponse.data.id,
+          tweet_url: tweetUrl,
+          total_length: fullTweetText.length,
+        },
+        "quote_tweet: Successfully quote-tweeted and recorded engagement"
+      );
+
+      logger(
+        `Quote-tweeted: ${tweet_id} (${username}) -> ${apiResponse.data.id} | ${comment}`
+      );
+
+      return new ExecutableGameFunctionResponse(
+        ExecutableGameFunctionStatus.Done,
+        `Successfully quote-tweeted @${username}'s tweet ${tweet_id} with comment: "${comment}". New tweet ID: ${apiResponse.data.id}`
+      );
+    } catch (error: any) {
+      appLogger.error(
+        { error: error.message, tweet_id: args.tweet_id },
+        "quote_tweet: Error occurred during quote-tweet operation"
+      );
+
+      logger(`Failed to quote-tweet (dummy): ${error.message}`);
+
       return new ExecutableGameFunctionResponse(
         ExecutableGameFunctionStatus.Failed,
-        "tweet_id and comment are required"
+        `Failed to quote-tweet (dummy): ${error.message}`
       );
     }
-    const message = `\n🗣️ QUOTE TWEET\nTweet ID: ${tweet_id}\nComment: ${comment}\n`;
-    console.log(message);
-    logger(`Quote-tweeted (dummy): ${tweet_id} | ${comment}`);
-    return new ExecutableGameFunctionResponse(
-      ExecutableGameFunctionStatus.Done,
-      message
-    );
   },
 });
 

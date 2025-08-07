@@ -129,10 +129,16 @@ export class DatabaseManager {
    */
   private createEngagementSchema(): void {
     this.db.exec(`
-      CREATE TABLE IF NOT EXISTS engaged_tweets (
+      CREATE TABLE IF NOT EXISTS engaged_mentions (
+        mention_id TEXT PRIMARY KEY,
+        engaged_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        action TEXT CHECK(action IN ('reply','like')) NOT NULL
+      );
+      
+      CREATE TABLE IF NOT EXISTS engaged_quotes (
         tweet_id TEXT PRIMARY KEY,
         engaged_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        action TEXT CHECK(action IN ('reply','quote','like')) NOT NULL
+        action TEXT DEFAULT 'quote' NOT NULL
       );
       
       CREATE TABLE IF NOT EXISTS candidate_tweets (
@@ -148,7 +154,7 @@ export class DatabaseManager {
       );
     `);
     appLogger.debug(
-      "Engagement schema created (engaged_tweets, candidate_tweets)"
+      "Engagement schema created (engaged_mentions, engaged_quotes, candidate_tweets)"
     );
   }
 
@@ -161,8 +167,10 @@ export class DatabaseManager {
         ON pending_mentions(status, priority, created_at);
       CREATE INDEX IF NOT EXISTS idx_pending_author 
         ON pending_mentions(author_id);
-      CREATE INDEX IF NOT EXISTS idx_engaged_at 
-        ON engaged_tweets(engaged_at);
+      CREATE INDEX IF NOT EXISTS idx_engaged_mentions_at 
+        ON engaged_mentions(engaged_at);
+      CREATE INDEX IF NOT EXISTS idx_engaged_quotes_at 
+        ON engaged_quotes(engaged_at);
       CREATE INDEX IF NOT EXISTS idx_rate_limits_window 
         ON rate_limits(endpoint, window_type, window_start);
       CREATE INDEX IF NOT EXISTS idx_rate_limits_reset
