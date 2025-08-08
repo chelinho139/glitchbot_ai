@@ -233,16 +233,8 @@ export const replyMentionFunction = new GameFunction({
             )
             .run(now, args.mention_id);
 
-          // Add to engaged_tweets table for tracking
-          db.database
-            .prepare(
-              `
-            INSERT OR REPLACE INTO engaged_tweets 
-            (tweet_id, engaged_at, action)
-            VALUES (?, ?, ?)
-          `
-            )
-            .run(args.mention_id, now, "reply");
+          // Add to engaged_mentions table for tracking
+          db.recordMentionEngagement(args.mention_id, "reply");
 
           processed = true;
           appLogger.info(

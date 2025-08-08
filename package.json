@@ -9,6 +9,7 @@
     "build": "tsc",
     "start": "node dist/glitchbot-agent.js",
     "start:glitchbot": "node dist/glitchbot-agent.js",
+    "timeline": "ts-node src/timeline-agent.ts",
     "test": "npx ts-node tests/test-runner.ts",
     "test:verbose": "npx ts-node tests/test-runner.ts --verbose",
     "test:pattern": "npx ts-node tests/test-runner.ts",

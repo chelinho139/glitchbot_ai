@@ -2,10 +2,16 @@ import Database from "better-sqlite3";
 import logger from "./log";
 import { DatabaseManager, databaseManager } from "./database-manager";
 
-export interface EngagedTweet {
+export interface EngagedMention {
+  mention_id: string;
+  engaged_at: string;
+  action: "reply" | "like";
+}
+
+export interface EngagedQuote {
   tweet_id: string;
   engaged_at: string;
-  action: "reply" | "quote" | "like";
+  action: "quote";
 }
 
 export interface CadenceRecord {
@@ -41,20 +47,41 @@ class GlitchBotDB {
 
   // Schema initialization now handled by DatabaseManager
 
-  // Check if a tweet was already engaged with
-  isEngaged(tweetId: string): boolean {
+  // Check if a mention was already engaged with
+  isMentionEngaged(mentionId: string): boolean {
     const stmt = this.dbManager.database.prepare(
-      "SELECT 1 FROM engaged_tweets WHERE tweet_id = ?"
+      "SELECT 1 FROM engaged_mentions WHERE mention_id = ?"
+    );
+    return !!stmt.get(mentionId);
+  }
+
+  // Record engagement with a mention
+  recordMentionEngagement(mentionId: string, action: "reply" | "like"): void {
+    const stmt = this.dbManager.database.prepare(
+      "INSERT OR IGNORE INTO engaged_mentions (mention_id, action) VALUES (?, ?)"
+    );
+    stmt.run(mentionId, action);
+  }
+
+  // Check if a tweet was already quoted
+  isTweetQuoted(tweetId: string): boolean {
+    const stmt = this.dbManager.database.prepare(
+      "SELECT 1 FROM engaged_quotes WHERE tweet_id = ?"
     );
     return !!stmt.get(tweetId);
   }
 
-  // Record engagement with a tweet
-  recordEngagement(tweetId: string, action: "reply" | "quote" | "like"): void {
+  // Record quote engagement with a tweet
+  recordQuoteEngagement(tweetId: string): void {
     const stmt = this.dbManager.database.prepare(
-      "INSERT OR IGNORE INTO engaged_tweets (tweet_id, action) VALUES (?, ?)"
+      "INSERT OR IGNORE INTO engaged_quotes (tweet_id, action) VALUES (?, 'quote')"
     );
-    stmt.run(tweetId, action);
+    stmt.run(tweetId);
+  }
+
+  // Legacy method for backward compatibility - checks both tables
+  isEngaged(tweetId: string): boolean {
+    return this.isMentionEngaged(tweetId) || this.isTweetQuoted(tweetId);
   }
 
   // Get cadence value (e.g., last_quote_ts, last_reply_ts)
@@ -72,6 +99,34 @@ class GlitchBotDB {
       "INSERT OR REPLACE INTO cadence (key, value) VALUES (?, ?)"
     );
     stmt.run(key, value);
+  }
+
+  // Timeline state management methods
+
+  // Get timeline state value (e.g., last_newest_id, last_next_token)
+  getTimelineState(key: string): string | null {
+    const stmt = this.dbManager.database.prepare(
+      "SELECT value FROM timeline_state WHERE key = ?"
+    );
+    const result = stmt.get(key) as { value: string } | undefined;
+    return result?.value || null;
+  }
+
+  // Set timeline state value
+  setTimelineState(key: string, value: string): void {
+    const stmt = this.dbManager.database.prepare(
+      "INSERT OR REPLACE INTO timeline_state (key, value, updated_at) VALUES (?, ?, ?)"
+    );
+    const now = new Date().toISOString();
+    stmt.run(key, value, now);
+  }
+
+  // Clear timeline state (useful for resetting pagination)
+  clearTimelineState(key: string): void {
+    const stmt = this.dbManager.database.prepare(
+      "DELETE FROM timeline_state WHERE key = ?"
+    );
+    stmt.run(key);
   }
 
   // Candidate tweet methods for Phase 2B storage
@@ -107,11 +162,11 @@ class GlitchBotDB {
     );
   }
 
-  // Get best candidate tweets by score
+  // Get best candidate tweets by score (excluding already quoted tweets)
   getBestCandidateTweets(limit: number = 10): CandidateTweet[] {
     const stmt = this.dbManager.database.prepare(`
       SELECT * FROM candidate_tweets 
-      WHERE tweet_id NOT IN (SELECT tweet_id FROM engaged_tweets)
+      WHERE tweet_id NOT IN (SELECT tweet_id FROM engaged_quotes)
       ORDER BY curation_score DESC, discovery_timestamp DESC
       LIMIT ?
     `);
@@ -172,19 +227,23 @@ class GlitchBotDB {
       Date.now() - 7 * 24 * 60 * 60 * 1000
     ).toISOString();
 
-    const cleanEngaged = this.dbManager.database.prepare(
-      "DELETE FROM engaged_tweets WHERE engaged_at < ?"
+    const cleanEngagedMentions = this.dbManager.database.prepare(
+      "DELETE FROM engaged_mentions WHERE engaged_at < ?"
+    );
+    const cleanEngagedQuotes = this.dbManager.database.prepare(
+      "DELETE FROM engaged_quotes WHERE engaged_at < ?"
     );
     const cleanCandidates = this.dbManager.database.prepare(
       "DELETE FROM candidate_tweets WHERE discovery_timestamp < ?"
     );
 
-    const engagedDeleted = cleanEngaged.run(weekAgo).changes;
+    const mentionsDeleted = cleanEngagedMentions.run(weekAgo).changes;
+    const quotesDeleted = cleanEngagedQuotes.run(weekAgo).changes;
     const candidatesDeleted = cleanCandidates.run(weekAgo).changes;
 
     logger.info(
-      { engagedDeleted, candidatesDeleted },
-      "Database cleanup completed for engaged_tweets and candidate_tweets"
+      { mentionsDeleted, quotesDeleted, candidatesDeleted },
+      "Database cleanup completed for engaged_mentions, engaged_quotes and candidate_tweets"
     );
   }
 
