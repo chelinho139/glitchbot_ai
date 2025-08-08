@@ -22,15 +22,18 @@ For Twitter/X, we use the **twitter node client** `@virtuals-protocol/game-twitt
 ## 1) Core Building Blocks
 
 ### GameFunction (Action/Tool)
+
 - **Purpose:** A bounded capability the LLM can invoke.
 - **Shape:** `name`, `description`, `args` validation, `executable(args, ctx) -> Promise<Result>`.
 - **Typical examples for GlitchBot:** `fetchMentionsTimeline`, `fetchHomeTimelineOrAggregate`, `quoteTweet`, `replyTweet`, `likeTweet`, `sendDM`.
 
 ### GameWorker (LLP)
+
 - **Purpose:** Plans how to achieve a delegated task using a defined set of GameFunctions.
 - **Key fields:** `id`, `name`, `description`, `functions[]`, optional `getEnvironment()`.
 
 ### GameAgent (HLP)
+
 - **Purpose:** High-level planner that sets tasks, selects workers, and learns from outcomes.
 - **Lifecycle:** `init()` → `run(intervalSec)` or manual `step()`.
 
@@ -52,41 +55,51 @@ For Twitter/X, we use the **twitter node client** `@virtuals-protocol/game-twitt
 ## 3) Twitter/X Integration (twitter-node first)
 
 ### 3.1 Package
+
 Use `@virtuals-protocol/game-twitter-node` for a preconfigured **twitter-api-v2**-compatible client exposed under `twitterClient.v2`.
 
 **Auth Modes**
-- **Single token:** `GAME_TWITTER_TOKEN` (via Virtuals OAuth)  
+
+- **Single token:** `GAME_TWITTER_TOKEN` (via Virtuals OAuth)
 - **App keys:** `TWITTER_APP_KEY`, `TWITTER_APP_SECRET`, `TWITTER_ACCESS_TOKEN`, `TWITTER_ACCESS_SECRET`
 
 ### 3.2 Core Calls (generic patterns)
+
 - **Quote tweet**
   ```ts
   await twitterClient.v2.tweet({ text, quote_tweet_id: targetId });
   ```
 - **Reply**
   ```ts
-  await twitterClient.v2.tweet({ text, reply: { in_reply_to_tweet_id: targetId } });
+  await twitterClient.v2.tweet({
+    text,
+    reply: { in_reply_to_tweet_id: targetId },
+  });
   ```
 - **Mentions timeline**
   ```ts
   // if available in the client; else fall back to search
-  const mentions = await twitterClient.v2.userMentionTimeline(userId, { since_id, max_results: 50 });
+  const mentions = await twitterClient.v2.userMentionTimeline(userId, {
+    since_id,
+    max_results: 50,
+  });
   ```
 - **Home timeline or Aggregated feed**
   - If `v2.homeTimeline` exists, use it.
   - Otherwise, aggregate: resolve self, fetch followees, pull recent tweets from a sample, and merge/sort locally.
 
 ### 3.3 Optional: Plugin Path
+
 `@virtuals-protocol/game-twitter-plugin` offers a prebuilt worker/functions. We keep it as an **alternative**, but GlitchBot defaults to **twitter-node** to retain control.
 
 ---
 
 ## 4) GlitchBot Behavior At-a-Glance
 
-- **English-only**; friendly, techy, slightly dark; no hashtags; ≤1 emoji optional.  
-- **Actions:** reply, quote (no original tweets), like; **DM owner** on issues; no follows; no deletions.  
-- **Cadence:** quotes ≥ 2h apart; replies ≤ 1/min; sleep 02:00–10:00 UTC‑3 (no posting).  
-- **Ranking priority:** keywords → rapid engagement → author followers > 5k → positive/inquisitive sentiment.  
+- **English-only**; friendly, techy, slightly dark; no hashtags; ≤1 emoji optional.
+- **Actions:** reply, quote (no original tweets), like; **DM owner** on issues; no follows; no deletions.
+- **Cadence:** quotes ≥ 2h apart; replies ≤ 1/min; sleep 02:00–10:00 UTC‑3 (no posting).
+- **Ranking priority:** keywords → rapid engagement → author followers > 5k → positive/inquisitive sentiment.
 - **No duplicates:** guard using `engaged_tweets` + memory.
 
 ---
@@ -105,14 +118,14 @@ CREATE TABLE cadence (
   value TEXT               -- ISO8601
 );
 
-CREATE TABLE candidate_tweets (
+CREATE TABLE suggested_tweets (
   tweet_id TEXT PRIMARY KEY,
   discovered_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   score REAL NOT NULL,
   reason TEXT
 );
 
-CREATE INDEX idx_candidate_score ON candidate_tweets(score DESC);
+CREATE INDEX idx_candidate_score ON suggested_tweets(score DESC);
 CREATE INDEX idx_engaged_at ON engaged_tweets(engaged_at);
 ```
 
@@ -120,28 +133,28 @@ CREATE INDEX idx_engaged_at ON engaged_tweets(engaged_at);
 
 ## 6) Error Handling
 
-- Handle 429 with exponential backoff + jitter.  
-- After repeated failures, DM owner and pause quotes for ~30 minutes.  
+- Handle 429 with exponential backoff + jitter.
+- After repeated failures, DM owner and pause quotes for ~30 minutes.
 - Log function name, sanitized inputs, outcome, error code, retry count.
 
 ---
 
 ## 7) Comparison Matrix
 
-| Approach                               | Pros                                         | Cons                                         | Fit |
-|----------------------------------------|----------------------------------------------|----------------------------------------------|-----|
-| **game + twitter-node (default)**      | Fine-grained control; TS-native; transparent | You author GameFunctions                      | ★★★ |
-| **game + twitter plugin (optional)**   | Prebuilt worker & functions                  | Less control/customization                    | ★★☆ |
-| Raw Twitter API + custom planner       | Max control                                  | Build planner, memory, cadence, safety       | ★★☆ |
-| LangChain JS Agents + custom tools     | Familiar abstractions                        | Not continuous by default; more glue          | ★★☆ |
+| Approach                             | Pros                                         | Cons                                   | Fit |
+| ------------------------------------ | -------------------------------------------- | -------------------------------------- | --- |
+| **game + twitter-node (default)**    | Fine-grained control; TS-native; transparent | You author GameFunctions               | ★★★ |
+| **game + twitter plugin (optional)** | Prebuilt worker & functions                  | Less control/customization             | ★★☆ |
+| Raw Twitter API + custom planner     | Max control                                  | Build planner, memory, cadence, safety | ★★☆ |
+| LangChain JS Agents + custom tools   | Familiar abstractions                        | Not continuous by default; more glue   | ★★☆ |
 
 ---
 
 ## 8) Roadmap (high-level)
 
-- **MVP:** mentions reply loop; 2h quote gate; SQLite persistence.  
-- **Reliability:** backoff; sleep window; owner DM on errors.  
-- **Tuning:** keyword lists; scoring tweaks; prompt refinements.  
+- **MVP:** mentions reply loop; 2h quote gate; SQLite persistence.
+- **Reliability:** backoff; sleep window; owner DM on errors.
+- **Tuning:** keyword lists; scoring tweaks; prompt refinements.
 - **Scale:** containerize; process manager.
 
 ---

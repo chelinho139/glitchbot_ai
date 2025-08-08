@@ -19,7 +19,7 @@ export interface CadenceRecord {
   value: string;
 }
 
-export interface CandidateTweet {
+export interface SuggestedTweet {
   tweet_id: string; // Original tweet ID (not mention ID)
   author_id: string; // Original author ID
   author_username: string; // Original author username
@@ -129,80 +129,80 @@ class GlitchBotDB {
     stmt.run(key);
   }
 
-  // Candidate tweet methods for Phase 2B storage
+  // Suggested tweet methods for Phase 2B storage
 
-  // Add candidate tweet with full metadata
-  addCandidateTweet(candidateTweet: CandidateTweet): void {
+  // Add suggested tweet with full metadata
+  addSuggestedTweet(suggestedTweet: SuggestedTweet): void {
     const stmt = this.dbManager.database.prepare(`
-      INSERT OR REPLACE INTO candidate_tweets (
+      INSERT OR REPLACE INTO suggested_tweets (
         tweet_id, author_id, author_username, content, created_at,
         public_metrics, discovered_via_mention_id, discovery_timestamp, curation_score
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
 
     stmt.run(
-      candidateTweet.tweet_id,
-      candidateTweet.author_id,
-      candidateTweet.author_username,
-      candidateTweet.content,
-      candidateTweet.created_at,
-      candidateTweet.public_metrics,
-      candidateTweet.discovered_via_mention_id,
-      candidateTweet.discovery_timestamp,
-      candidateTweet.curation_score
+      suggestedTweet.tweet_id,
+      suggestedTweet.author_id,
+      suggestedTweet.author_username,
+      suggestedTweet.content,
+      suggestedTweet.created_at,
+      suggestedTweet.public_metrics,
+      suggestedTweet.discovered_via_mention_id,
+      suggestedTweet.discovery_timestamp,
+      suggestedTweet.curation_score
     );
 
     logger.info(
       {
-        tweet_id: candidateTweet.tweet_id,
-        author: candidateTweet.author_username,
-        score: candidateTweet.curation_score,
+        tweet_id: suggestedTweet.tweet_id,
+        author: suggestedTweet.author_username,
+        score: suggestedTweet.curation_score,
       },
-      "Candidate tweet stored successfully"
+      "Suggested tweet stored successfully"
     );
   }
 
-  // Get best candidate tweets by score (excluding already quoted tweets)
-  getBestCandidateTweets(limit: number = 10): CandidateTweet[] {
+  // Get best suggested tweets by score (excluding already quoted tweets)
+  getBestSuggestedTweets(limit: number = 10): SuggestedTweet[] {
     const stmt = this.dbManager.database.prepare(`
-      SELECT * FROM candidate_tweets 
+      SELECT * FROM suggested_tweets 
       WHERE tweet_id NOT IN (SELECT tweet_id FROM engaged_quotes)
       ORDER BY curation_score DESC, discovery_timestamp DESC
       LIMIT ?
     `);
-    return stmt.all(limit) as CandidateTweet[];
+    return stmt.all(limit) as SuggestedTweet[];
   }
 
-  // Get candidate tweet by ID
-  getCandidateTweet(tweetId: string): CandidateTweet | null {
+  // Get suggested tweet by ID
+  getSuggestedTweet(tweetId: string): SuggestedTweet | null {
     const stmt = this.dbManager.database.prepare(
-      "SELECT * FROM candidate_tweets WHERE tweet_id = ?"
+      "SELECT * FROM suggested_tweets WHERE tweet_id = ?"
     );
-    return stmt.get(tweetId) as CandidateTweet | null;
+    return stmt.get(tweetId) as SuggestedTweet | null;
   }
 
-  // Check if candidate tweet already exists
-  candidateTweetExists(tweetId: string): boolean {
+  // Check if suggested tweet already exists
+  suggestedTweetExists(tweetId: string): boolean {
     const stmt = this.dbManager.database.prepare(
-      "SELECT 1 FROM candidate_tweets WHERE tweet_id = ?"
+      "SELECT 1 FROM suggested_tweets WHERE tweet_id = ?"
     );
     return !!stmt.get(tweetId);
   }
 
-  // Remove processed candidate
-  removeCandidateTweet(tweetId: string): void {
+  // Remove processed suggested tweet
+  removeSuggestedTweet(tweetId: string): void {
     const stmt = this.dbManager.database.prepare(
-      "DELETE FROM candidate_tweets WHERE tweet_id = ?"
+      "DELETE FROM suggested_tweets WHERE tweet_id = ?"
     );
     const result = stmt.run(tweetId);
     logger.debug(
       { tweet_id: tweetId, deleted: result.changes },
-      "Candidate tweet removed"
+      "Suggested tweet removed"
     );
   }
 
-  // Get candidate tweet statistics
-  getCandidateStats(): {
+  // Get suggested tweet statistics
+  getSuggestedStats(): {
     total: number;
     high_quality: number;
     avg_score: number;
@@ -212,7 +212,7 @@ class GlitchBotDB {
         COUNT(*) as total,
         COUNT(CASE WHEN curation_score >= 15 THEN 1 END) as high_quality,
         AVG(curation_score) as avg_score
-      FROM candidate_tweets
+      FROM suggested_tweets
     `);
     return stmt.get() as {
       total: number;
@@ -234,7 +234,7 @@ class GlitchBotDB {
       "DELETE FROM engaged_quotes WHERE engaged_at < ?"
     );
     const cleanCandidates = this.dbManager.database.prepare(
-      "DELETE FROM candidate_tweets WHERE discovery_timestamp < ?"
+      "DELETE FROM suggested_tweets WHERE discovery_timestamp < ?"
     );
 
     const mentionsDeleted = cleanEngagedMentions.run(weekAgo).changes;
@@ -243,7 +243,7 @@ class GlitchBotDB {
 
     logger.info(
       { mentionsDeleted, quotesDeleted, candidatesDeleted },
-      "Database cleanup completed for engaged_mentions, engaged_quotes and candidate_tweets"
+      "Database cleanup completed for engaged_mentions, engaged_quotes and suggested_tweets"
     );
   }
 

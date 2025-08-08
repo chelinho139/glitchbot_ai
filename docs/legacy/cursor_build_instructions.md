@@ -98,8 +98,9 @@ Do **not** commit secrets.
 1. **Scaffold Project**
 
    - Initialize TS config, `pnpm` scripts, `.env` loading, and logger.
-   - Create `lib/db.ts` (SQLite). Create tables: `engaged_tweets`, `cadence`, `candidate_tweets`.
-   - Confirm you have read `/src/docs/overview_game_node_glitchbot_research.md` and the SDK README.
+
+- Create `lib/db.ts` (SQLite). Create tables: `engaged_tweets`, `cadence`, `suggested_tweets`.
+  - Confirm you have read `/src/docs/overview_game_node_glitchbot_research.md` and the SDK README.
 
 2. **Wire Twitter GameFunctions (twitter-node)**
 

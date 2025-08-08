@@ -556,7 +556,7 @@ async cleanupOldTweets() {
 
 #### **Content Cleanup**
 
-- **Candidate tweets**: Remove after 24 hours or if score < 5
+- **Suggested tweets**: Remove after 24 hours or if score < 5
 - **Processed content**: Remove after engagement is recorded
 - **Duplicate content**: Remove based on similarity detection
 - **Low-quality content**: Remove based on quality thresholds

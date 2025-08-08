@@ -534,7 +534,7 @@ export const fetchMentionsFunction = new GameFunction({
       if (apiResponse.data.includes) {
         result.includes = {};
 
-        // Process included tweets (referenced tweets) and store as candidate tweets
+        // Process included tweets (referenced tweets) and store as suggested tweets
         if (apiResponse.data.includes.tweets) {
           result.includes.tweets = apiResponse.data.includes.tweets.map(
             (tweet: any) => ({
@@ -558,13 +558,13 @@ export const fetchMentionsFunction = new GameFunction({
             })
           );
 
-          // Store referenced tweets as candidate tweets using the includes data
+          // Store referenced tweets as suggested tweets using the includes data
           for (const includedTweet of apiResponse.data.includes.tweets) {
             try {
-              // Check if this tweet is already stored as a candidate
+              // Check if this tweet is already stored as a suggested tweet
               const existingCandidate = db.database
                 .prepare(
-                  `SELECT tweet_id FROM candidate_tweets WHERE tweet_id = ?`
+                  `SELECT tweet_id FROM suggested_tweets WHERE tweet_id = ?`
                 )
                 .get(includedTweet.id);
 
@@ -611,10 +611,10 @@ export const fetchMentionsFunction = new GameFunction({
                         ? "linked"
                         : "orphaned",
                   },
-                  "fetch_mentions: Processing candidate tweet linkage"
+                  "fetch_mentions: Processing suggested tweet linkage"
                 );
 
-                // Create candidate tweet using the includes data (like legacy system)
+                // Create suggested tweet using the includes data (like legacy system)
                 const candidateTweet: any = {
                   tweet_id: includedTweet.id,
                   author_id: includedTweet.author_id,
@@ -633,7 +633,7 @@ export const fetchMentionsFunction = new GameFunction({
                   );
                 }
 
-                db.addCandidateTweet(candidateTweet);
+                db.addSuggestedTweet(candidateTweet);
 
                 appLogger.info(
                   {
@@ -705,7 +705,7 @@ export const fetchMentionsFunction = new GameFunction({
       console.log("🆔 Newest ID:", result.meta.newest_id || "none");
       console.log("🆔 Oldest ID:", result.meta.oldest_id || "none");
 
-      // Log linkage summary for candidate tweets
+      // Log linkage summary for suggested tweets
       if (result.includes?.tweets) {
         console.log(
           "🔗 Referenced tweets found:",

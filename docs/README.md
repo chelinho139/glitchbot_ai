@@ -13,7 +13,7 @@ New to GlitchBot? Start here:
 
 ## ✅ **Current Production Status**
 
-**MentionsWorker**: ✅ **FULLY IMPLEMENTED** - Context-aware content acknowledgment system with candidate tweet integration
+**MentionsWorker**: ✅ **FULLY IMPLEMENTED** - Context-aware content acknowledgment system with suggested tweet integration
 
 ## 📖 **Core Documentation**
 
@@ -36,7 +36,7 @@ New to GlitchBot? Start here:
 
 #### **Twitter Workers**
 
-- **[Mentions Worker](./workers/mentions-worker.md)** - ✅ **COMPLETE**: Context-aware mention processing with candidate tweet integration
+- **[Mentions Worker](./workers/mentions-worker.md)** - ✅ **COMPLETE**: Context-aware mention processing with suggested tweet integration
 - **[Discovery Worker](./workers/discovery-worker.md)** - Content discovery and scoring (planned)
 - **[Engagement Worker](./workers/engagement-worker.md)** - Quote tweets and strategic engagement (planned)
 

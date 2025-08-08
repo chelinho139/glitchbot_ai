@@ -22,7 +22,7 @@ export interface ReplyMentionResult {
 export const replyMentionFunction = new GameFunction({
   name: "reply_mention",
   description:
-    "Reply to a specific mention and mark it as processed in the database. This is the final step in the mentions workflow. Referenced tweets are automatically fetched and stored as candidate tweets during the mention fetch process, so this function focuses solely on posting the reply and updating the mention status to 'completed'.",
+    "Reply to a specific mention and mark it as processed in the database. This is the final step in the mentions workflow. Referenced tweets are automatically fetched and stored as suggested tweets during the mention fetch process, so this function focuses solely on posting the reply and updating the mention status to 'completed'.",
   args: [
     { name: "mention_id", description: "ID of mention/tweet to reply to" },
     { name: "reply_text", description: "The reply content (max 280 chars)" },
@@ -151,7 +151,7 @@ export const replyMentionFunction = new GameFunction({
         }
       }
 
-      // Store the mentioned tweet as a candidate tweet and mark mention as processed
+      // Store the mentioned tweet as a suggested tweet and mark mention as processed
       let processed = false;
       let storedAsCandidate = false;
       let storageReason = "";
@@ -218,7 +218,7 @@ export const replyMentionFunction = new GameFunction({
                 mention_id: mention.mention_id,
                 error: storageError.message,
               },
-              "reply_mention: Failed to store mentioned tweet as candidate"
+              "reply_mention: Failed to detect/store referenced tweet context"
             );
             // Don't fail the function since the reply was successful
           }

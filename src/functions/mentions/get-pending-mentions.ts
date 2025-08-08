@@ -3,8 +3,8 @@
 // Retrieves pending mentions from the database for worker processing
 // This is part of the complete mentions processing workflow:
 // 1. fetch-mentions: Fetches new mentions from Twitter API, stores in pending_mentions table,
-//                    and automatically stores referenced tweets as candidate_tweets
-// 2. get-pending-mentions: Retrieves list of pending mentions from DB WITH related candidate
+//                    and automatically stores referenced tweets as suggested_tweets
+// 2. get-pending-mentions: Retrieves list of pending mentions from DB WITH related suggested
 //                          tweets context for informed worker responses
 // 3. reply-mention: Posts reply to mention and marks it as completed in the database
 
@@ -16,8 +16,8 @@ import {
 import GlitchBotDB from "../../lib/db";
 import appLogger from "../../lib/log";
 
-// Define the structure for candidate tweet data
-export interface CandidateTweet {
+// Define the structure for suggested tweet data
+export interface SuggestedTweet {
   tweet_id: string;
   author_id: string;
   author_username: string;
@@ -28,7 +28,7 @@ export interface CandidateTweet {
   discovery_timestamp: string;
 }
 
-// Define the structure for pending mention data with related candidate tweets
+// Define the structure for pending mention data with related suggested tweets
 export interface PendingMention {
   mention_id: string;
   author_id: string;
@@ -42,7 +42,7 @@ export interface PendingMention {
   fetched_at: string;
   processed_at?: string;
   referenced_tweets?: string; // JSON string of referenced tweets data
-  candidate_tweets?: CandidateTweet[]; // Related candidate tweets discovered via this mention
+  suggested_tweets?: SuggestedTweet[]; // Related suggested tweets discovered via this mention
 }
 
 export interface GetPendingMentionsResult {
@@ -50,13 +50,13 @@ export interface GetPendingMentionsResult {
   total_count: number;
   pending_count: number;
   processing_count: number;
-  candidate_tweets_count: number; // Total candidate tweets linked to these mentions
+  suggested_tweets_count: number; // Total suggested tweets linked to these mentions
 }
 
 export const getPendingMentionsFunction = new GameFunction({
   name: "get_pending_mentions",
   description:
-    "Retrieve pending mentions from database for worker processing with related candidate tweets context. Returns mentions sorted by priority (high to low) and creation time (oldest first), including any candidate tweets that were discovered via each mention. This provides full context about what content users shared when tagging @glitchbot_ai.",
+    "Retrieve pending mentions from database for worker processing with related suggested tweets context. Returns mentions sorted by priority (high to low) and creation time (oldest first), including any suggested tweets that were discovered via each mention. This provides full context about what content users shared when tagging @glitchbot_ai.",
   args: [
     {
       name: "limit",
@@ -73,9 +73,9 @@ export const getPendingMentionsFunction = new GameFunction({
       description: "Include statistics about total counts (default: true)",
     },
     {
-      name: "include_candidate_tweets",
+      name: "include_suggested_tweets",
       description:
-        "Include related candidate tweets for each mention (default: true)",
+        "Include related suggested tweets for each mention (default: true)",
     },
   ] as const,
   executable: async (args, logger) => {
@@ -88,7 +88,7 @@ export const getPendingMentionsFunction = new GameFunction({
           limit: args.limit,
           status: args.status,
           include_stats: args.include_stats,
-          include_candidate_tweets: args.include_candidate_tweets,
+          include_suggested_tweets: args.include_suggested_tweets,
         },
         "get_pending_mentions: Starting operation"
       );
@@ -97,7 +97,7 @@ export const getPendingMentionsFunction = new GameFunction({
       const limit = Math.min(Math.max(parseInt(args.limit || "10"), 1), 100);
       const status = args.status || "pending";
       const includeStats = args.include_stats !== "false";
-      const includeCandidateTweets = args.include_candidate_tweets !== "false";
+      const includeSuggestedTweets = args.include_suggested_tweets !== "false";
 
       // Validate status
       const validStatuses = ["pending", "processing", "completed", "failed"];
@@ -150,12 +150,12 @@ export const getPendingMentionsFunction = new GameFunction({
         "get_pending_mentions: Retrieved mentions from database"
       );
 
-      // Fetch related candidate tweets if requested
+      // Fetch related suggested tweets if requested
       let totalCandidateTweetsCount = 0;
-      if (includeCandidateTweets && mentions.length > 0) {
+      if (includeSuggestedTweets && mentions.length > 0) {
         const mentionIds = mentions.map((m) => m.mention_id);
 
-        // Get all candidate tweets discovered via these mentions
+        // Get all suggested tweets discovered via these mentions
         const candidateTweets = db.database
           .prepare(
             `
@@ -169,21 +169,21 @@ export const getPendingMentionsFunction = new GameFunction({
             curation_score,
             discovery_timestamp,
             discovered_via_mention_id
-          FROM candidate_tweets 
+          FROM suggested_tweets 
           WHERE discovered_via_mention_id IN (${mentionIds
             .map(() => "?")
             .join(",")})
           ORDER BY discovery_timestamp DESC
         `
           )
-          .all(...mentionIds) as (CandidateTweet & {
+          .all(...mentionIds) as (SuggestedTweet & {
           discovered_via_mention_id: string;
         })[];
 
         totalCandidateTweetsCount = candidateTweets.length;
 
-        // Group candidate tweets by mention ID
-        const candidateTweetsByMention = new Map<string, CandidateTweet[]>();
+        // Group suggested tweets by mention ID
+        const candidateTweetsByMention = new Map<string, SuggestedTweet[]>();
         candidateTweets.forEach((tweet) => {
           const mentionId = tweet.discovered_via_mention_id;
           if (!candidateTweetsByMention.has(mentionId)) {
@@ -194,20 +194,20 @@ export const getPendingMentionsFunction = new GameFunction({
           candidateTweetsByMention.get(mentionId)!.push(tweetWithoutMentionId);
         });
 
-        // Attach candidate tweets to their respective mentions
+        // Attach suggested tweets to their respective mentions
         mentions.forEach((mention) => {
-          mention.candidate_tweets =
+          mention.suggested_tweets =
             candidateTweetsByMention.get(mention.mention_id) || [];
         });
 
         appLogger.info(
           {
             mentions_with_tweets: mentions.filter(
-              (m) => m.candidate_tweets && m.candidate_tweets.length > 0
+              (m) => m.suggested_tweets && m.suggested_tweets.length > 0
             ).length,
-            total_candidate_tweets: totalCandidateTweetsCount,
+            total_suggested_tweets: totalCandidateTweetsCount,
           },
-          "get_pending_mentions: Linked candidate tweets to mentions"
+          "get_pending_mentions: Linked suggested tweets to mentions"
         );
       }
 
@@ -251,27 +251,27 @@ export const getPendingMentionsFunction = new GameFunction({
         total_count: totalCount,
         pending_count: pendingCount,
         processing_count: processingCount,
-        candidate_tweets_count: totalCandidateTweetsCount,
+        suggested_tweets_count: totalCandidateTweetsCount,
       };
 
       appLogger.info(
         {
           mentions_count: mentions.length,
-          candidate_tweets_count: totalCandidateTweetsCount,
+          suggested_tweets_count: totalCandidateTweetsCount,
           mentions_with_context: mentions.filter(
-            (m) => m.candidate_tweets && m.candidate_tweets.length > 0
+            (m) => m.suggested_tweets && m.suggested_tweets.length > 0
           ).length,
           status,
           execution_time_ms: executionTime,
           total_count: totalCount,
           pending_count: pendingCount,
-          include_candidate_tweets: includeCandidateTweets,
+          include_suggested_tweets: includeSuggestedTweets,
         },
-        "get_pending_mentions: Operation completed with candidate tweet context"
+        "get_pending_mentions: Operation completed with suggested tweet context"
       );
 
       logger(
-        `Retrieved ${mentions.length} ${status} mentions with ${totalCandidateTweetsCount} related candidate tweets in ${executionTime}ms`
+        `Retrieved ${mentions.length} ${status} mentions with ${totalCandidateTweetsCount} related suggested tweets in ${executionTime}ms`
       );
 
       return new ExecutableGameFunctionResponse(
@@ -288,7 +288,7 @@ export const getPendingMentionsFunction = new GameFunction({
           execution_time_ms: executionTime,
           limit: args.limit,
           status: args.status,
-          include_candidate_tweets: args.include_candidate_tweets,
+          include_suggested_tweets: args.include_suggested_tweets,
         },
         "get_pending_mentions: Unexpected error occurred"
       );

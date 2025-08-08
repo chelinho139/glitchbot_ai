@@ -9,7 +9,7 @@ This guide provides a systematic, testable approach to implementing GlitchBot's 
 - [x] 3-level G.A.M.E hierarchy implemented
 - [x] Global coordination layer with centralized database management
 - [x] Atomic and workflow functions structured with comprehensive testing
-- [x] **MentionsWorker COMPLETE**: Context-aware mention processing with candidate tweet integration
+- [x] **MentionsWorker COMPLETE**: Context-aware mention processing with suggested tweet integration
 - [x] Enterprise-grade rate limiting and error handling
 - [x] Complete project builds, tests, and runs in production
 
@@ -17,7 +17,7 @@ This guide provides a systematic, testable approach to implementing GlitchBot's 
 
 - [x] **Phase 1**: MentionsWorker (CRITICAL Priority) - ✅ **FULLY COMPLETE**
   - ✅ **Context-Aware Processing**: References shared content in intelligent responses
-  - ✅ **Candidate Tweet Storage**: Automatic capture and linking of referenced content
+- ✅ **Suggested Tweet Storage**: Automatic capture and linking of referenced content
   - ✅ **Enhanced Database Integration**: Full mention-to-content linkage system
   - ✅ **Production Ready**: Handles real Twitter interactions with 180s cycles
 - [ ] **Phase 2**: DiscoveryWorker (HIGH Priority)
@@ -41,18 +41,22 @@ The MentionsWorker has evolved far beyond the original plan into a sophisticated
 
 **🚀 Enhanced Functions Implemented:**
 
-- ✅ **`fetch-mentions.ts`** - Advanced mention fetching with candidate tweet storage
+- ✅ **`fetch-mentions.ts`** - Advanced mention fetching with suggested tweet storage
 
   - Auto-checkpoint management with database persistence
   - Twitter API v2 with includes data (tweets, users, metrics)
-  - Automatic candidate tweet storage and mention linking
+
+- Automatic suggested tweet storage and mention linking
+
   - Enhanced logging with linkage quality tracking
   - Zero additional API calls using includes data efficiency
 
 - ✅ **`get-pending-mentions.ts`** - Context-rich mention retrieval
 
   - Status filtering with priority sorting (high→low, oldest→newest)
-  - Candidate tweet context included for each mention
+
+- Suggested tweet context included for each mention
+
   - Full linkage via `discovered_via_mention_id` field
   - Statistics and batch processing support
 
@@ -65,7 +69,7 @@ The MentionsWorker has evolved far beyond the original plan into a sophisticated
 
 - ✅ **`mentions-worker.ts`** - Orchestrated intelligent processing
   - Smart flow: process existing queue before fetching new mentions
-  - Context analysis using candidate tweet data for informed responses
+- Context analysis using suggested tweet data for informed responses
   - Rate limit optimization with 180-second processing cycles
   - Community building through author attribution and content recognition
 
@@ -76,7 +80,7 @@ The MentionsWorker has evolved far beyond the original plan into a sophisticated
 - **Engagement Awareness**: Notes viral content and high engagement (1.2K+ likes)
 - **Topic Understanding**: Shows comprehension of AI research, crypto analysis, technical content
 - **Community Building**: Creates connections between users and original creators
-- **Database Integration**: Full mention→candidate tweet linkage system
+- **Database Integration**: Full mention→suggested tweet linkage system
 
 **📊 Production Metrics:**
 

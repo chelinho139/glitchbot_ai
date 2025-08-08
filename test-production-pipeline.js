@@ -27,8 +27,8 @@ async function testProductionPipeline() {
 
   // Get pre-test database stats
   console.log("\n📊 PRE-TEST DATABASE STATE:");
-  const preStats = db.getCandidateStats();
-  console.log(`- Total Candidate Tweets: ${preStats.total}`);
+  const preStats = db.getSuggestedStats();
+  console.log(`- Total Suggested Tweets: ${preStats.total}`);
   console.log(`- High Quality (≥15): ${preStats.high_quality}`);
   console.log(`- Average Score: ${Math.round(preStats.avg_score * 100) / 100}`);
 
@@ -178,9 +178,9 @@ async function testProductionPipeline() {
     // =====================================================
     console.log("\n📊 POST-TEST DATABASE STATE:");
     console.log("-".repeat(40));
-    const postStats = db.getCandidateStats();
+    const postStats = db.getSuggestedStats();
     console.log(
-      `- Total Candidate Tweets: ${postStats.total} (was ${preStats.total})`
+      `- Total Suggested Tweets: ${postStats.total} (was ${preStats.total})`
     );
     console.log(
       `- High Quality (≥15): ${postStats.high_quality} (was ${preStats.high_quality})`
@@ -194,12 +194,12 @@ async function testProductionPipeline() {
     const newlyStored = postStats.total - preStats.total;
     if (newlyStored > 0) {
       console.log(
-        `🎉 NEW STORAGE: ${newlyStored} tweets added to candidate database!`
+        `🎉 NEW STORAGE: ${newlyStored} tweets added to suggested database!`
       );
 
       // Show top candidates
-      const topCandidates = db.getBestCandidateTweets(3);
-      console.log(`\n🏆 TOP CANDIDATES:`);
+      const topCandidates = db.getBestSuggestedTweets(3);
+      console.log(`\n🏆 TOP SUGGESTED:`);
       topCandidates.forEach((candidate, index) => {
         console.log(
           `   ${index + 1}. @${candidate.author_username} (${

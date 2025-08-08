@@ -260,7 +260,7 @@ Input → Discovery → Scoring → Filtering → Caching → Engagement
 
 **Cleanup Rules**:
 
-- Candidate tweets: Remove after 24 hours or if score < 5
+- Suggested tweets: Remove after 24 hours or if score < 5
 - Engagement records: Archive after 30 days, delete after 1 year
 - Error logs: Keep 30 days, archive up to 6 months
 - Performance logs: Keep 7 days, archive up to 3 months

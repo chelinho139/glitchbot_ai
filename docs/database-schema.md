@@ -6,12 +6,12 @@ This document provides comprehensive documentation for GlitchBot's SQLite databa
 
 **File:** `glitchbot.db` (SQLite)  
 **Location:** Project root directory  
-**Purpose:** Persistent storage for context-aware mentions queue, candidate tweet curation, rate limiting, engagement tracking, and system state  
+**Purpose:** Persistent storage for context-aware mentions queue, suggested tweet curation, rate limiting, engagement tracking, and system state  
 **Architecture:** Centralized DatabaseManager with enhanced mention-to-content linkage system
 
 ### **🎯 Core Innovation: Mention→Content Linkage**
 
-The database now features a sophisticated linkage system between `PENDING_MENTIONS` and `CANDIDATE_TWEETS` via the `discovered_via_mention_id` field, enabling intelligent context-aware responses.
+The database now features a sophisticated linkage system between `PENDING_MENTIONS` and `SUGGESTED_TWEETS` via the `discovered_via_mention_id` field, enabling intelligent context-aware responses.
 
 ## 🏗️ **Database Architecture**
 
@@ -102,12 +102,12 @@ CREATE TABLE mention_state (
 - `last_since_id`: Latest mention ID processed (Twitter pagination)
 - `last_fetch_time`: Timestamp of last successful fetch operation
 
-### **3. CANDIDATE_TWEETS - Content Curation System**
+### **3. SUGGESTED_TWEETS - Content Curation System**
 
 **Purpose:** Stores curated content referenced in mentions for intelligent response context
 
 ```sql
-CREATE TABLE candidate_tweets (
+CREATE TABLE suggested_tweets (
   tweet_id TEXT PRIMARY KEY,               -- Referenced tweet ID
   author_id TEXT NOT NULL,                 -- Original tweet author ID
   author_username TEXT NOT NULL,           -- Original tweet author username
@@ -120,8 +120,8 @@ CREATE TABLE candidate_tweets (
 );
 
 -- Critical index for mention→content linkage
-CREATE INDEX idx_candidate_discovered_via ON candidate_tweets(discovered_via_mention_id);
-CREATE INDEX idx_candidate_score ON candidate_tweets(curation_score DESC);
+CREATE INDEX idx_candidate_discovered_via ON suggested_tweets(discovered_via_mention_id);
+CREATE INDEX idx_candidate_score ON suggested_tweets(curation_score DESC);
 ```
 
 **🔗 Key Innovation: Mention→Content Linkage**
@@ -130,7 +130,7 @@ The `discovered_via_mention_id` field creates a direct link between mentions and
 
 - When user posts: `@glitchbot_ai check this out!` + references @sama's tweet
 - `pending_mentions` stores the mention with `mention_id = "123"`
-- `candidate_tweets` stores @sama's tweet with `discovered_via_mention_id = "123"`
+- `suggested_tweets` stores @sama's tweet with `discovered_via_mention_id = "123"`
 - Worker retrieves mention with context: "User shared @sama's AI research paper"
 - Response: "Fascinating research from @sama! Thanks for flagging this @user 🤖"
 

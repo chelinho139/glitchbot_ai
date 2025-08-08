@@ -45,7 +45,9 @@ GlitchBot implements the complete 3-level G.A.M.E hierarchy:
   - **Context-aware responses** to mentions with content understanding (< 3 minutes)
   - **Intelligent content acknowledgment** that references specific shared tweets and authors
   - **Community building** through author attribution and engagement insights
-  - **Candidate tweet curation** with automatic storage and mention linkage
+
+- **Suggested tweet curation** with automatic storage and mention linkage
+
   - Handles "@GlitchBot check this out!" scenarios with genuine content understanding
 
 - **📈 EngagementWorker** - _HIGH Priority_
