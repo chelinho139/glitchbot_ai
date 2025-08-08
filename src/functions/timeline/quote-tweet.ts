@@ -6,6 +6,7 @@ import {
 import { createRateLimitedTwitterClient } from "../../lib/rate-limited-twitter-client";
 import GlitchBotDB from "../../lib/db";
 import appLogger from "../../lib/log";
+import { checkAllGuards, updateQuoteTimestamp } from "../../lib/cadence";
 
 /**
  * Quote-tweet function with engagement tracking.
@@ -73,6 +74,18 @@ const quoteTweetFunction = new GameFunction({
         return new ExecutableGameFunctionResponse(
           ExecutableGameFunctionStatus.Failed,
           `Tweet ${tweet_id} was already quoted. Avoiding duplicate.`
+        );
+      }
+
+      // Check cadence guards before posting
+      if (!checkAllGuards(db, "quote")) {
+        appLogger.info(
+          { tweet_id },
+          "quote_tweet: Quote cadence not met, skipping"
+        );
+        return new ExecutableGameFunctionResponse(
+          ExecutableGameFunctionStatus.Failed,
+          "Quote cadence not met; skipping"
         );
       }
 
@@ -174,6 +187,9 @@ const quoteTweetFunction = new GameFunction({
 
       // Record the engagement to prevent future duplicates
       db.recordQuoteEngagement(tweet_id);
+
+      // Update quote timestamp for cadence tracking
+      updateQuoteTimestamp(db);
 
       appLogger.info(
         {

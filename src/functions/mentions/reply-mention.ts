@@ -7,6 +7,7 @@ import {
 import { createRateLimitedTwitterClient } from "../../lib/rate-limited-twitter-client";
 import appLogger from "../../lib/log";
 import GlitchBotDB from "../../lib/db";
+import { updateReplyTimestamp } from "../../lib/cadence";
 
 export interface ReplyMentionResult {
   success: boolean;
@@ -74,6 +75,9 @@ export const replyMentionFunction = new GameFunction({
         workerId: "mentions-worker",
         defaultPriority: "high", // Replies have high priority
       });
+
+      // Initialize database
+      const db = new GlitchBotDB();
 
       // Post the reply
       let apiResponse;
@@ -153,7 +157,6 @@ export const replyMentionFunction = new GameFunction({
       let storageReason = "";
 
       try {
-        const db = new GlitchBotDB();
         const now = new Date().toISOString();
 
         // Get full mention data from pending_mentions table
@@ -235,6 +238,9 @@ export const replyMentionFunction = new GameFunction({
 
           // Add to engaged_mentions table for tracking
           db.recordMentionEngagement(args.mention_id, "reply");
+
+          // Update reply timestamp for cadence tracking
+          updateReplyTimestamp(db);
 
           processed = true;
           appLogger.info(

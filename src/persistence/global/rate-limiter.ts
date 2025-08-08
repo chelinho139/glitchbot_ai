@@ -83,6 +83,22 @@ export class GlobalRateLimiter {
       worker_fair_share: true,
     });
 
+    this._configs.set("fetch_timeline", {
+      endpoint: "fetch_timeline",
+      requests_per_15min: 15, // 1 per minute = 15 per 15 minutes
+      requests_per_hour: 60, // 1 per minute = 60 per hour
+      requests_per_day: 1440, // 1 per minute = 1440 per day
+      worker_fair_share: true,
+    });
+
+    this._configs.set("post_tweet", {
+      endpoint: "post_tweet",
+      requests_per_15min: 15, // 1 per minute = 15 per 15 minutes
+      requests_per_hour: 60, // 1 per minute = 60 per hour
+      requests_per_day: 1440, // 1 per minute = 1440 per day
+      worker_fair_share: false, // Priority for posting
+    });
+
     appLogger.info(
       { endpoints: Array.from(this._configs.keys()) },
       "Rate limiter initialized with TESTING LIMITS: 1 request per minute for all endpoints"
