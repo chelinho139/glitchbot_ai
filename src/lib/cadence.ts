@@ -7,15 +7,15 @@ export const isSleepTime = (d = new Date()): boolean => {
   return h >= 5 && h < 13;
 };
 
-// Check if enough time has passed since last quote (2 hours)
+// Check if enough time has passed since last quote (1 hour)
 export const canQuoteNow = (db: GlitchBotDB, now = new Date()): boolean => {
   const lastQuoteTs = db.getCadence("last_quote_ts");
   if (!lastQuoteTs) return true;
 
   const timeSinceLastQuote = now.getTime() - new Date(lastQuoteTs).getTime();
-  const twoHoursMs = 2 * 60 * 60 * 1000;
+  const oneHourMs = 60 * 60 * 1000;
 
-  return timeSinceLastQuote >= twoHoursMs;
+  return timeSinceLastQuote >= oneHourMs;
 };
 
 // Check if enough time has passed since last reply (1 minute)
@@ -60,15 +60,11 @@ export const checkAllGuards = (
 ): boolean => {
   const now = new Date();
 
-  // Always check sleep time first
-  if (isSleepTime(now)) {
-    logger.info("Currently in sleep window (05:00-13:00 UTC), skipping post");
-    return false;
-  }
+  // No sleep window check (removed per requirements)
 
   // Check specific action cadence
   if (action === "quote" && !canQuoteNow(db, now)) {
-    logger.info("Quote cadence not met (< 2 hours since last quote)");
+    logger.info("Quote cadence not met (< 1 hour since last quote)");
     return false;
   }
 
@@ -107,8 +103,7 @@ export const getTimeUntilNextAction = (
     const lastQuoteTs = db.getCadence("last_quote_ts");
     if (!lastQuoteTs) return 0;
 
-    const nextAllowedTime =
-      new Date(lastQuoteTs).getTime() + 2 * 60 * 60 * 1000;
+    const nextAllowedTime = new Date(lastQuoteTs).getTime() + 60 * 60 * 1000;
     return Math.max(0, nextAllowedTime - now.getTime());
   }
 
