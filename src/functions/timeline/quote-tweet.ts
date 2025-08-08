@@ -15,19 +15,21 @@ import appLogger from "../../lib/log";
 const quoteTweetFunction = new GameFunction({
   name: "quote_tweet",
   description:
-    "Quote-tweets a tweet with a comment using the Twitter API. Includes duplicate prevention by checking engaged_quotes table and rate limiting.",
+    "Quote-tweets a tweet with a comment using the Twitter API. Arguments must reference the SAME tweet: tweet_id must be the selected tweet, username must be the EXACT author username (without @) of that tweet. Calls may be rejected if arguments don't match. Includes duplicate prevention and rate limiting. Content selection is handled at the agent/worker level.",
   args: [
     {
       name: "tweet_id",
-      description: "The ID of the tweet to quote",
+      description: "The ID of the tweet to quote (required)",
     },
     {
       name: "username",
-      description: "The username of the tweet author (without @)",
+      description:
+        "EXACT username of the tweet's author (without @). Must match the author of tweet_id.",
     },
     {
       name: "comment",
-      description: "The comment to add to the quote tweet",
+      description:
+        "Your commentary to add to the quote tweet (<= 280 chars including URL)",
     },
   ] as const,
   executable: async (args, logger) => {
@@ -89,6 +91,8 @@ const quoteTweetFunction = new GameFunction({
         workerId: "timeline-worker",
         defaultPriority: "medium",
       });
+
+      // Content selection is enforced at the agent/worker level; no topic guard here
 
       // Post the quote tweet using Twitter API (with URL in text)
       let apiResponse;

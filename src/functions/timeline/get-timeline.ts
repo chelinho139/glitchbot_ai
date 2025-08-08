@@ -346,8 +346,23 @@ export const getTimelineFunction = new GameFunction({
         next_token: apiResponse.data.meta?.next_token,
       };
 
+      // Exclude self-authored tweets if BOT_TWITTER_USERNAME is set
+      const selfUsernameRaw =
+        process.env.BOT_TWITTER_USERNAME || process.env.SELF_TWITTER_USERNAME;
+      const selfUsername = selfUsernameRaw
+        ? selfUsernameRaw.replace(/^@/, "").toLowerCase()
+        : undefined;
+
+      const outputTweets = selfUsername
+        ? tweets.filter(
+            (t) => (t.author?.username || "").toLowerCase() !== selfUsername
+          )
+        : tweets;
+
+      const filteredCount = tweets.length - outputTweets.length;
+
       const result: GetTimelineResult = {
-        tweets,
+        tweets: outputTweets,
         meta,
       };
 
@@ -420,19 +435,21 @@ export const getTimelineFunction = new GameFunction({
 
       appLogger.info(
         {
-          tweets_count: tweets.length,
+          tweets_count: outputTweets.length,
           execution_time_ms: executionTime,
           rate_limit_remaining: result.rate_limit?.remaining,
           newest_id: result.meta.newest_id,
           next_token: result.meta.next_token ? "present" : "none",
           pagination_used: !!PAGINATION_TOKEN,
           exclude_filter: EXCLUDE || "none",
+          self_username_filter: selfUsername || "none",
+          self_filtered_count: filteredCount,
         },
         "get_timeline: Home timeline operation completed successfully"
       );
 
       logger(
-        `Fetched ${tweets.length} home timeline tweets in ${executionTime}ms`
+        `Fetched ${outputTweets.length} home timeline tweets in ${executionTime}ms`
       );
 
       return new ExecutableGameFunctionResponse(
