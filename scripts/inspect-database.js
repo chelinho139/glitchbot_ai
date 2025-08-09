@@ -10,6 +10,69 @@ const distPath = path.join(projectRoot, "dist");
 // Import the database class
 const GlitchBotDB = require(path.join(distPath, "lib", "db.js")).default;
 
+function stringifyValue(value) {
+  if (value === null || value === undefined) return "";
+  if (typeof value === "object") {
+    try {
+      return JSON.stringify(value);
+    } catch (_e) {
+      return String(value);
+    }
+  }
+  return String(value);
+}
+
+function computeColumnWidths(columns, rows) {
+  const widths = columns.map((c) => c.length);
+  for (const row of rows) {
+    columns.forEach((col, idx) => {
+      const val = stringifyValue(row[col]);
+      if (val.length > widths[idx]) widths[idx] = val.length;
+    });
+  }
+  // Cap insanely long columns to keep table readable
+  return widths.map((w) => Math.min(w, 120));
+}
+
+function printTable(columns, rows) {
+  const widths = computeColumnWidths(columns, rows);
+
+  const sep = "┌" + widths.map((w) => "".padEnd(w + 2, "─")).join("┬") + "┐";
+  const mid = "├" + widths.map((w) => "".padEnd(w + 2, "─")).join("┼") + "┤";
+  const end = "└" + widths.map((w) => "".padEnd(w + 2, "─")).join("┴") + "┘";
+
+  const header =
+    "│ " +
+    columns.map((c, i) => c.toString().padEnd(widths[i], " ")).join(" │ ") +
+    " │";
+
+  console.log(sep);
+  console.log(header);
+  console.log(mid);
+
+  if (rows.length === 0) {
+    const empty =
+      "│ " +
+      columns.map((_, i) => "".padEnd(widths[i], " ")).join(" │ ") +
+      " │";
+    console.log(empty);
+  } else {
+    for (const row of rows) {
+      const line =
+        "│ " +
+        columns
+          .map((c, i) =>
+            stringifyValue(row[c]).slice(0, widths[i]).padEnd(widths[i], " ")
+          )
+          .join(" │ ") +
+        " │";
+      console.log(line);
+    }
+  }
+
+  console.log(end);
+}
+
 console.log("🗄️  GlitchBot Database Inspector");
 console.log("=====================================\n");
 
@@ -35,19 +98,11 @@ try {
     console.log(`📋 Table ${index + 1}: ${tableName.toUpperCase()}`);
     console.log(`${"=".repeat(60)}`);
 
-    // Get table schema
+    // Get table schema (standardized table)
     const schema = db.database.prepare(`PRAGMA table_info(${tableName})`).all();
     console.log("\n🏗️  Schema:");
-    schema.forEach((col) => {
-      const nullable = col.notnull ? "NOT NULL" : "NULLABLE";
-      const defaultVal = col.dflt_value ? ` DEFAULT ${col.dflt_value}` : "";
-      const primaryKey = col.pk ? " [PRIMARY KEY]" : "";
-      console.log(
-        `   ${col.name.padEnd(20)} ${col.type.padEnd(
-          15
-        )} ${nullable}${defaultVal}${primaryKey}`
-      );
-    });
+    const schemaCols = ["name", "type", "notnull", "dflt_value", "pk"];
+    printTable(schemaCols, schema);
 
     // Get row count
     const count = db.database
@@ -55,159 +110,14 @@ try {
       .get();
     console.log(`\n📊 Row Count: ${count.count}`);
 
-    // Get table contents (limit to 10 rows for readability)
+    // Get table contents (limit to 10 rows for readability), standardized table
     if (count.count > 0) {
       const rows = db.database
         .prepare(`SELECT * FROM ${tableName} LIMIT 10`)
         .all();
       console.log("\n📋 Contents (showing first 10 rows):");
-
-      if (tableName === "pending_mentions") {
-        // Special formatting for pending_mentions
-        console.log(
-          "┌─────────────────┬─────────────┬──────────────┬─────────────┬─────────────┬─────────────┐"
-        );
-        console.log(
-          "│ Mention ID      │ Author      │ Status       │ Priority    │ Created     │ Processed   │"
-        );
-        console.log(
-          "├─────────────────┼─────────────┼──────────────┼─────────────┼─────────────┼─────────────┤"
-        );
-
-        rows.forEach((row) => {
-          const mentionId = (row.mention_id || "").substring(0, 15).padEnd(15);
-          const author = (`@${row.author_username}` || "")
-            .substring(0, 11)
-            .padEnd(11);
-          const status = (row.status || "").padEnd(12);
-          const priority = (row.priority || "").toString().padEnd(11);
-          const created = row.created_at
-            ? new Date(row.created_at).toLocaleDateString()
-            : "N/A";
-          const processed = row.processed_at
-            ? new Date(row.processed_at).toLocaleDateString()
-            : "Not yet";
-
-          console.log(
-            `│ ${mentionId} │ ${author} │ ${status} │ ${priority} │ ${created.padEnd(
-              11
-            )} │ ${processed.padEnd(11)} │`
-          );
-        });
-
-        console.log(
-          "└─────────────────┴─────────────┴──────────────┴─────────────┴─────────────┴─────────────┘"
-        );
-
-        // Show status summary
-        const statusSummary = db.database
-          .prepare(
-            `
-          SELECT status, COUNT(*) as count 
-          FROM pending_mentions 
-          GROUP BY status 
-          ORDER BY count DESC
-        `
-          )
-          .all();
-
-        if (statusSummary.length > 0) {
-          console.log("\n📈 Status Summary:");
-          statusSummary.forEach((s) => {
-            console.log(`   ${s.status.padEnd(12)}: ${s.count} mentions`);
-          });
-        }
-      } else if (tableName === "mention_state") {
-        // Special formatting for mention_state
-        console.log(
-          "┌─────────────────────┬─────────────────────────────────────┬─────────────────────┐"
-        );
-        console.log(
-          "│ Key                 │ Value                               │ Updated At          │"
-        );
-        console.log(
-          "├─────────────────────┼─────────────────────────────────────┼─────────────────────┤"
-        );
-
-        rows.forEach((row) => {
-          const key = (row.key || "").padEnd(19);
-          const value = (row.value || "").substring(0, 35).padEnd(35);
-          const updated = row.updated_at
-            ? new Date(row.updated_at).toLocaleString()
-            : "N/A";
-
-          console.log(`│ ${key} │ ${value} │ ${updated.padEnd(19)} │`);
-        });
-
-        console.log(
-          "└─────────────────────┴─────────────────────────────────────┴─────────────────────┘"
-        );
-      } else if (tableName === "engaged_tweets") {
-        // Special formatting for engaged_tweets
-        console.log("┌─────────────────┬─────────────┬─────────────────────┐");
-        console.log("│ Tweet ID        │ Action      │ Engaged At          │");
-        console.log("├─────────────────┼─────────────┼─────────────────────┤");
-
-        rows.forEach((row) => {
-          const tweetId = (row.tweet_id || "").substring(0, 15).padEnd(15);
-          const action = (row.action || "").padEnd(11);
-          const engagedAt = row.engaged_at
-            ? new Date(row.engaged_at).toLocaleString()
-            : "N/A";
-
-          console.log(`│ ${tweetId} │ ${action} │ ${engagedAt.padEnd(19)} │`);
-        });
-
-        console.log("└─────────────────┴─────────────┴─────────────────────┘");
-      } else if (tableName === "rate_limits") {
-        // Special formatting for rate_limits
-        console.log(
-          "┌─────────────────┬─────────────┬─────────────┬─────────────┬─────────────────────┐"
-        );
-        console.log(
-          "│ Endpoint        │ Window Type │ Used        │ Window Start│ Twitter Reset       │"
-        );
-        console.log(
-          "├─────────────────┼─────────────┼─────────────┼─────────────┼─────────────────────┤"
-        );
-
-        rows.forEach((row) => {
-          const endpoint = (row.endpoint || "").substring(0, 15).padEnd(15);
-          const windowType = (row.window_type || "")
-            .substring(0, 11)
-            .padEnd(11);
-          const used = (row.requests_used || 0).toString().padEnd(11);
-          const windowStart = row.window_start
-            ? new Date(row.window_start).toLocaleTimeString()
-            : "N/A";
-          const twitterReset = row.twitter_reset_time
-            ? new Date(row.twitter_reset_time * 1000).toLocaleTimeString()
-            : "N/A";
-
-          console.log(
-            `│ ${endpoint} │ ${windowType} │ ${used} │ ${windowStart.padEnd(
-              11
-            )} │ ${twitterReset.padEnd(19)} │`
-          );
-        });
-
-        console.log(
-          "└─────────────────┴─────────────┴─────────────┴─────────────┴─────────────────────┘"
-        );
-      } else {
-        // Generic table display
-        rows.forEach((row, i) => {
-          console.log(`\n   Row ${i + 1}:`);
-          Object.entries(row).forEach(([key, value]) => {
-            let displayValue = value;
-            if (typeof value === "string" && value.length > 50) {
-              displayValue = value.substring(0, 47) + "...";
-            }
-            console.log(`     ${key.padEnd(20)}: ${displayValue}`);
-          });
-        });
-      }
-
+      const columns = rows.length > 0 ? Object.keys(rows[0]) : [];
+      printTable(columns, rows);
       if (count.count > 10) {
         console.log(`\n   ... and ${count.count - 10} more rows`);
       }

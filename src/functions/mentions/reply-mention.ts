@@ -160,15 +160,7 @@ export const replyMentionFunction = new GameFunction({
         const now = new Date().toISOString();
 
         // Get full mention data from pending_mentions table
-        const mention = db.database
-          .prepare(
-            `
-          SELECT mention_id, author_id, author_username, text, created_at, status, referenced_tweets
-          FROM pending_mentions 
-          WHERE mention_id = ?
-        `
-          )
-          .get(args.mention_id) as any;
+        const mention = db.getPendingMentionById(args.mention_id) as any;
 
         if (mention) {
           // Referenced tweets are now automatically stored during fetch-mentions
@@ -224,17 +216,7 @@ export const replyMentionFunction = new GameFunction({
           }
 
           // Update pending_mentions table
-          db.database
-            .prepare(
-              `
-            UPDATE pending_mentions 
-            SET status = 'completed', 
-                processed_at = ?,
-                worker_id = 'mentions-worker'
-            WHERE mention_id = ?
-          `
-            )
-            .run(now, args.mention_id);
+          db.markMentionProcessed(args.mention_id, now, "mentions-worker");
 
           // Add to engaged_mentions table for tracking
           db.recordMentionEngagement(args.mention_id, "reply");

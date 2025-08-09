@@ -31,6 +31,21 @@ export interface SuggestedTweet {
   curation_score: number; // Content quality score (0-20)
 }
 
+export interface PendingMentionRow {
+  mention_id: string;
+  author_id: string;
+  author_username: string;
+  text: string;
+  created_at: string;
+  status: string;
+  priority: number;
+  retry_count: number;
+  original_fetch_id: string;
+  fetched_at: string;
+  processed_at?: string;
+  referenced_tweets?: string;
+}
+
 class GlitchBotDB {
   private dbManager: DatabaseManager;
 
@@ -112,6 +127,37 @@ class GlitchBotDB {
     return result?.value || null;
   }
 
+  // Mention state management methods
+
+  getMentionState(key: string): string | null {
+    const stmt = this.dbManager.database.prepare(
+      "SELECT value FROM mention_state WHERE key = ?"
+    );
+    const result = stmt.get(key) as { value: string } | undefined;
+    return result?.value || null;
+  }
+
+  setMentionState(key: string, value: string): void {
+    const now = new Date().toISOString();
+    const stmt = this.dbManager.database.prepare(
+      "INSERT OR REPLACE INTO mention_state (key, value, updated_at) VALUES (?, ?, ?)"
+    );
+    stmt.run(key, value, now);
+  }
+
+  getLastMentionSinceId(): string | null {
+    return this.getMentionState("last_since_id");
+  }
+
+  setMentionCheckpoint(newestId: string): void {
+    const now = new Date().toISOString();
+    const setStmt = this.dbManager.database.prepare(
+      "INSERT OR REPLACE INTO mention_state (key, value, updated_at) VALUES (?, ?, ?)"
+    );
+    setStmt.run("last_since_id", newestId, now);
+    setStmt.run("last_fetch_time", now, now);
+  }
+
   // Set timeline state value
   setTimelineState(key: string, value: string): void {
     const stmt = this.dbManager.database.prepare(
@@ -160,6 +206,194 @@ class GlitchBotDB {
       },
       "Suggested tweet stored successfully"
     );
+  }
+
+  /**
+   * Get recent suggested tweet rows discovered via mentions within the last `windowHours`.
+   * Falls back to discovery_timestamp window if mention join yields no rows.
+   * Excludes tweets already in engaged_quotes.
+   */
+  getRecentSuggestedTweetRowsByMentionWindow(
+    windowHours: number,
+    limit: number
+  ): Array<{
+    tweet_id: string;
+    author_id: string;
+    author_username: string;
+    content: string;
+    created_at: string;
+    public_metrics?: string;
+    discovered_via_mention_id: string;
+  }> {
+    const cutoffIso = new Date(
+      Date.now() - windowHours * 60 * 60 * 1000
+    ).toISOString();
+
+    // Primary: join with pending_mentions to ensure mention is within window
+    const selectSuggestions = this.dbManager.database.prepare(
+      `
+        SELECT 
+          st.tweet_id,
+          st.author_id,
+          st.author_username,
+          st.content,
+          st.created_at,
+          st.public_metrics,
+          st.discovered_via_mention_id
+        FROM suggested_tweets st
+        JOIN pending_mentions pm 
+          ON pm.mention_id = st.discovered_via_mention_id
+        WHERE pm.created_at >= ?
+          AND st.tweet_id NOT IN (SELECT tweet_id FROM engaged_quotes)
+        ORDER BY pm.created_at DESC
+        LIMIT ?
+      `
+    );
+
+    let rows = selectSuggestions.all(cutoffIso, limit) as any[];
+
+    // Fallback: use discovery_timestamp window
+    if (!rows || rows.length === 0) {
+      const fallbackSelect = this.dbManager.database.prepare(
+        `
+          SELECT 
+            st.tweet_id,
+            st.author_id,
+            st.author_username,
+            st.content,
+            st.created_at,
+            st.public_metrics,
+            st.discovered_via_mention_id
+          FROM suggested_tweets st
+          WHERE st.discovery_timestamp >= ?
+            AND st.tweet_id NOT IN (SELECT tweet_id FROM engaged_quotes)
+          ORDER BY st.discovery_timestamp DESC
+          LIMIT ?
+        `
+      );
+      rows = fallbackSelect.all(cutoffIso, limit) as any[];
+    }
+
+    return (rows || []).map((r) => ({
+      tweet_id: String(r.tweet_id),
+      author_id: String(r.author_id),
+      author_username: String(r.author_username),
+      content: String(r.content),
+      created_at: String(r.created_at),
+      public_metrics: r.public_metrics,
+      discovered_via_mention_id: String(r.discovered_via_mention_id),
+    }));
+  }
+
+  // Query helpers for mentions and suggestions
+
+  getPendingMentions(status: string, limit: number): PendingMentionRow[] {
+    const stmt = this.dbManager.database.prepare(
+      `
+        SELECT 
+          mention_id,
+          author_id,
+          author_username,
+          text,
+          created_at,
+          status,
+          priority,
+          retry_count,
+          original_fetch_id,
+          fetched_at,
+          processed_at,
+          referenced_tweets
+        FROM pending_mentions 
+        WHERE status = ?
+        ORDER BY priority DESC, created_at ASC
+        LIMIT ?
+      `
+    );
+    return stmt.all(status, limit) as PendingMentionRow[];
+  }
+
+  getSuggestedTweetsForMentions(
+    mentionIds: string[]
+  ): Array<SuggestedTweet & { discovered_via_mention_id: string }> {
+    if (mentionIds.length === 0) return [];
+    const placeholders = mentionIds.map(() => "?").join(",");
+    const stmt = this.dbManager.database.prepare(
+      `
+        SELECT 
+          tweet_id,
+          author_id,
+          author_username,
+          content,
+          created_at,
+          public_metrics,
+          curation_score,
+          discovery_timestamp,
+          discovered_via_mention_id
+        FROM suggested_tweets 
+        WHERE discovered_via_mention_id IN (${placeholders})
+        ORDER BY discovery_timestamp DESC
+      `
+    );
+    return stmt.all(...mentionIds) as Array<
+      SuggestedTweet & { discovered_via_mention_id: string }
+    >;
+  }
+
+  getPendingStats(): { total: number; pending: number; processing: number } {
+    const stmt = this.dbManager.database.prepare(
+      `
+        SELECT 
+          COUNT(*) as total,
+          SUM(CASE WHEN status = 'pending' THEN 1 ELSE 0 END) as pending,
+          SUM(CASE WHEN status = 'processing' THEN 1 ELSE 0 END) as processing
+        FROM pending_mentions
+      `
+    );
+    const row = stmt.get() as any;
+    return {
+      total: row?.total || 0,
+      pending: row?.pending || 0,
+      processing: row?.processing || 0,
+    };
+  }
+
+  getPendingMentionById(mentionId: string): PendingMentionRow | null {
+    const stmt = this.dbManager.database.prepare(
+      `
+        SELECT 
+          mention_id,
+          author_id,
+          author_username,
+          text,
+          created_at,
+          status,
+          priority,
+          retry_count,
+          original_fetch_id,
+          fetched_at,
+          processed_at,
+          referenced_tweets
+        FROM pending_mentions
+        WHERE mention_id = ?
+      `
+    );
+    return (stmt.get(mentionId) as PendingMentionRow) || null;
+  }
+
+  markMentionProcessed(
+    mentionId: string,
+    processedAtIso: string,
+    workerId: string
+  ): void {
+    this.dbManager.database
+      .prepare(
+        `
+          UPDATE pending_mentions 
+          SET status = 'completed', processed_at = ?, worker_id = ?
+          WHERE mention_id = ?
+        `
+      )
+      .run(processedAtIso, workerId, mentionId);
   }
 
   // Get best suggested tweets by score (excluding already quoted tweets)

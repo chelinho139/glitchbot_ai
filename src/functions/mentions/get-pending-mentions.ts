@@ -117,29 +117,10 @@ export const getPendingMentionsFunction = new GameFunction({
       const db = new GlitchBotDB();
 
       // Get mentions with the specified status
-      const mentions = db.database
-        .prepare(
-          `
-        SELECT 
-          mention_id,
-          author_id,
-          author_username,
-          text,
-          created_at,
-          status,
-          priority,
-          retry_count,
-          original_fetch_id,
-          fetched_at,
-          processed_at,
-          referenced_tweets
-        FROM pending_mentions 
-        WHERE status = ?
-        ORDER BY priority DESC, created_at ASC
-        LIMIT ?
-      `
-        )
-        .all(status, limit) as PendingMention[];
+      const mentions = db.getPendingMentions(
+        status,
+        limit
+      ) as unknown as PendingMention[];
 
       appLogger.info(
         {
@@ -156,27 +137,9 @@ export const getPendingMentionsFunction = new GameFunction({
         const mentionIds = mentions.map((m) => m.mention_id);
 
         // Get all suggested tweets discovered via these mentions
-        const candidateTweets = db.database
-          .prepare(
-            `
-          SELECT 
-            tweet_id,
-            author_id,
-            author_username,
-            content,
-            created_at,
-            public_metrics,
-            curation_score,
-            discovery_timestamp,
-            discovered_via_mention_id
-          FROM suggested_tweets 
-          WHERE discovered_via_mention_id IN (${mentionIds
-            .map(() => "?")
-            .join(",")})
-          ORDER BY discovery_timestamp DESC
-        `
-          )
-          .all(...mentionIds) as (SuggestedTweet & {
+        const candidateTweets = db.getSuggestedTweetsForMentions(
+          mentionIds
+        ) as (SuggestedTweet & {
           discovered_via_mention_id: string;
         })[];
 
@@ -218,21 +181,10 @@ export const getPendingMentionsFunction = new GameFunction({
 
       if (includeStats) {
         // Get count statistics
-        const stats = db.database
-          .prepare(
-            `
-          SELECT 
-            COUNT(*) as total,
-            SUM(CASE WHEN status = 'pending' THEN 1 ELSE 0 END) as pending,
-            SUM(CASE WHEN status = 'processing' THEN 1 ELSE 0 END) as processing
-          FROM pending_mentions
-        `
-          )
-          .get() as any;
-
-        totalCount = stats.total || 0;
-        pendingCount = stats.pending || 0;
-        processingCount = stats.processing || 0;
+        const stats = db.getPendingStats();
+        totalCount = stats.total;
+        pendingCount = stats.pending;
+        processingCount = stats.processing;
 
         appLogger.debug(
           {
