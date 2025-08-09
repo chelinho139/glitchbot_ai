@@ -1,461 +1,67 @@
-# 🤖 GlitchBot - AI Twitter Agent
+# GlitchBot – AI Twitter Agent
 
-**GlitchBot** is an autonomous Twitter bot powered by the Virtuals G.A.M.E (Generative Autonomous Multi-Agent Engine) framework. Built with a sophisticated 3-level architecture, GlitchBot delivers intelligent, contextual social media engagement focused on DeFi, AI, and emerging technologies.
+GlitchBot is an autonomous agent that replies to mentions with context and posts cadence‑safe quote tweets in AI/crypto/tech topics. It is built on a simple, layered architecture with a rate‑limited Twitter client and a persistent SQLite backend.
 
-## 🚀 **Current Production Status**
+## Overview
 
-### ✅ **MentionsWorker - FULLY IMPLEMENTED & PRODUCTION READY**
+Main capabilities:
 
-**Revolutionary Context-Aware Content Acknowledgment System**
+- Context‑aware replies to mentions (references the exact tweet and author when users share content)
+- Curate referenced tweets into a suggestions pool for later quoting
+- Quote‑tweet from home timeline plus suggestions, with duplication and cadence guards
 
-- **Intelligent Responses**: References specific content, authors, and engagement metrics in replies
-- **Content Curation**: Automatically captures and stores referenced tweets for community discovery
-- **Community Building**: Creates connections between users and original content creators
-- **Database Integration**: Sophisticated mention→content linkage system
-- **Production Metrics**: 180-second processing cycles, context awareness in 90%+ of applicable mentions
+## Components
 
-**Example Real Response:**
+- Agent (orchestrator): high‑level rules and schedule
+- Workers (implemented):
+  - MentionsWorker (`src/workers/mentions-worker.ts`): fetch mentions, link each mention to referenced tweets, reply with context, update queue state
+  - Timeline Worker (`src/workers/timeline-worker.ts`): fetch home timeline, mix recent suggestions, quote‑tweet with 1‑hour cadence and duplicate prevention
+- Functions:
+  - Mentions: `src/functions/mentions/*`
+  - Timeline: `src/functions/timeline/*`
 
-```
-User: "@glitchbot_ai check this out!"
-Referenced: @sama's tweet about neural scaling laws (342 likes)
-Bot: "Fascinating research from @sama on neural scaling! Thanks for
-      flagging this @user, the implications for AI development are huge 🤖"
-```
+## Data & Rate Limiting
 
-**Ready to Run:** `npm run start` - Handles real Twitter interactions with intelligent, context-aware responses.
+- Storage: SQLite (`glitchbot.db`) via `DatabaseManager`
+- Key tables: `pending_mentions`, `mention_state`, `suggested_tweets`, `engaged_mentions`, `engaged_quotes`, `rate_limits`, `timeline_state`, `cadence`
+- Rate limiting: transparent client wrapper that tracks per‑endpoint usage across 15‑min/hour/day windows and prevents duplicate or out‑of‑cadence actions
 
-## 🏗️ Architecture Overview
+## Operation
 
-GlitchBot implements the complete 3-level G.A.M.E hierarchy:
+- Replies: ≥ 60 seconds between replies; mentions prioritized
+- Quotes: ≥ 1 hour between quotes; excludes self; duplicate prevention via `engaged_quotes`
+- Topic guard: AI/crypto/software/tech
+- Sleep window: 05:00–13:00 UTC (read/store only)
 
-### 📋 **Level 1: GameAgent (High-Level Planner)**
+## Setup
 
-- **GlitchBotAgent** - Strategic decision making and goal prioritization
-- Orchestrates multiple specialized workers
-- Makes high-level decisions about engagement strategy
-- Manages sleep schedules and system-wide priorities
+Prerequisites: Node.js 20+, TypeScript, Twitter API access, Virtuals G.A.M.E key
 
-### ⚡ **Level 2: GameWorkers (Specialized Task Execution)**
-
-#### **Twitter Workers (Social Media Operations)**
-
-- **🔥 MentionsWorker** - _CRITICAL Priority_ ✅ **FULLY IMPLEMENTED**
-
-  - **Context-aware responses** to mentions with content understanding (< 3 minutes)
-  - **Intelligent content acknowledgment** that references specific shared tweets and authors
-  - **Community building** through author attribution and engagement insights
-
-- **Suggested tweet curation** with automatic storage and mention linkage
-
-  - Handles "@GlitchBot check this out!" scenarios with genuine content understanding
-
-- **🧵 Timeline Worker** - _HIGH Priority_ ✅ IMPLEMENTED
-
-  - Fetches home timeline with `get_timeline`
-  - Mixes in recent community suggestions with `get_timeline_with_suggestion`
-  - Posts quote tweets via `quote_tweet` with strict author-username discipline
-  - 1-hour quote cadence guard, duplicate prevention via `engaged_quotes`
-
-- **📈 EngagementWorker** - _HIGH Priority_ (planned)
-
-- **🔍 DiscoveryWorker** - _MEDIUM Priority_
-  - Continuous content discovery and curation
-  - Multi-source scanning (keywords, accounts, trending)
-  - Intelligent content scoring and filtering
-  - Handles priority analysis requests from other workers
-
-#### **System Workers (Infrastructure Management)**
-
-- **📊 MonitoringWorker** - _LOW Priority_
-
-  - System health and performance monitoring
-  - API rate limit tracking and alerts
-  - Error pattern analysis and reporting
-  - Performance optimization insights
-
-- **🧹 MaintenanceWorker** - _LOW Priority_
-
-  - Database cleanup and optimization
-  - Log rotation and storage management
-  - Scheduled maintenance during sleep windows
-  - Data integrity validation and backups
-
-- **🤝 CoordinationWorker** - _MEDIUM Priority_
-  - Cross-worker communication and task routing
-  - Resource conflict resolution
-  - Shared state synchronization
-  - System-wide event broadcasting
-
-### 🔧 **Level 3: GameFunctions (Atomic Actions)**
-
-#### **Atomic Functions (Single-Purpose)**
-
-- **Social/Twitter**: `fetch_mentions`, `search_tweets`, `post_tweet`, `like_tweet`, `send_dm`
-- **Analytics**: `score_content`, `analyze_sentiment`, `track_engagement`
-- **Utilities**: `check_cadence`, `validate_content`, `manage_locks`
-
-#### **Workflow Functions (Multi-Step Processes)**
-
-- **`quote_tweet_workflow`**: Complete quote tweet process with commentary
-- **`reply_workflow`**: Context-aware reply generation and posting
-- **`discovery_workflow`**: Multi-source content discovery and scoring
-
-## 🔗 Global Coordination Layer
-
-### **EngagementTracker**
-
-- Prevents duplicate engagement across workers
-- Tracks engagement history and success patterns
-- Coordinates system-wide engagement strategy
-
-### **ReservationManager**
-
-- Manages shared resource access (content, API quotas, DB connections)
-- Priority-based resource allocation
-- Queue management for high-demand resources
-
-### **RateLimiter** ✅ **IMPLEMENTED**
-
-- **Automatic & Transparent**: Zero boilerplate - all API calls automatically rate limited
-- **Persistent Tracking**: SQLite-based tracking across 15min/hour/day windows
-- **Fair Share Allocation**: Priority-based allocation with worker fair-share distribution
-- **Twitter API Sync**: Syncs with actual Twitter rate limit headers
-- **Enterprise Ready**: Comprehensive error handling and monitoring
-
-## 🚀 Getting Started
-
-### Prerequisites
-
-- Node.js 20+
-- TypeScript
-- Twitter API access (v2)
-- Virtuals G.A.M.E API key
-
-### Installation
+1. Install and configure env
 
 ```bash
-# Install dependencies
 npm install
-
-# Copy environment template
 cp env.example .env
-
-# Configure your environment variables
-# VIRTUALS_API_KEY=your_api_key
-# GAME_TWITTER_TOKEN=your_token (or Twitter app keys)
+# set required tokens/keys
 ```
 
-### Development
+2. Build/run
 
 ```bash
-# Development mode
-npm run dev
-
-# Build project
 npm run build
-
-# Production start
 npm run start
-
-# Run tests
-npm run test
 ```
 
-## 🎯 Bot Behavior & Strategy
-
-### **Engagement Strategy**
-
-- **Quote Tweets**: High-impact content (score 15+) with thoughtful commentary
-- **Strategic Replies**: Value-added contributions to important conversations
-- **Community Building**: Responsive interaction with mentions and DMs
-- **Thought Leadership**: Insights on DeFi, AI, Web3, and emerging tech
-
-### **Content Discovery**
-
-- **Keyword Monitoring**: DeFi, AI, Web3, GameFi, innovation terms
-- **Account Watching**: Key influencers and thought leaders
-- **Trending Analysis**: Viral content in relevant spaces
-- **Community Curation**: User-suggested content analysis
-
-### **Quality Standards**
-
-- **Content Scoring**: 20-point scale based on relevance, engagement, authority
-- **Timing Intelligence**: Optimal posting times and cadence management
-- **Brand Consistency**: Authentic, helpful, technically insightful voice
-- **Community Focus**: Building relationships over metrics
-
-### **Operational Rules**
-
-- **Sleep Schedule**: 05:00-13:00 UTC (quiet hours)
-- **Quote Cadence**: Minimum 1 hour between quote tweets
-- **Reply Cadence**: Minimum 60 seconds between replies (relaxed for mentions)
-- **API Respect**: Intelligent rate limiting and error handling
-
-## 📊 Worker Coordination Examples
-
-### **User-Directed Content Analysis**
-
-```
-User: "@GlitchBot check out this DeFi innovation: [tweet_link]"
-     ↓
-MentionsWorker: Detects intent, delegates to DiscoveryWorker
-     ↓
-CoordinationWorker: Routes priority analysis request
-     ↓
-DiscoveryWorker: Performs priority content analysis
-     ↓
-MentionsWorker: Reports results back to user
-```
-
-### **Cross-Worker Content Flow**
-
-```
-DiscoveryWorker: Finds high-quality content (score 18/20)
-     ↓
-EngagementTracker: Reserves content for quote tweet
-     ↓
-EngagementWorker: Creates thoughtful quote with commentary
-     ↓
-RateLimiter: Ensures API quota availability
-     ↓
-Post published & engagement tracked
-```
-
-## 🛡️ Rate Limiting System
-
-GlitchBot features an **enterprise-grade rate limiting system** that provides automatic protection against Twitter API rate limits with zero boilerplate code.
-
-### **✨ Key Features**
-
-- **🔄 Transparent Operation**: All `TwitterApi` calls automatically rate limited
-- **📊 Persistent Tracking**: SQLite database tracks usage across time windows
-- **⚖️ Fair Share Allocation**: Multiple workers get fair distribution of API quota
-- **🎯 Priority System**: Critical operations (replies) bypass fair-share limits
-- **🔗 Twitter Sync**: Syncs with actual Twitter rate limit headers
-- **📈 Multi-Window Tracking**: 15-minute, hourly, and daily limit enforcement
-
-### **🚀 Implementation**
-
-```typescript
-// Before: Manual rate limit handling
-const twitterClient = new TwitterApi({ gameTwitterAccessToken: token });
-// ... manual rate limit checks and error handling
-
-// After: Automatic rate limiting (zero changes needed!)
-const twitterClient = createRateLimitedTwitterClient({
-  gameTwitterAccessToken: token,
-  workerId: "mentions-worker",
-  defaultPriority: "high",
-});
-// All API calls now automatically rate limited!
-```
-
-### **📋 Configured API Endpoints**
-
-Current testing defaults: ~1 request/minute per endpoint (15 per 15 minutes). Adjust in code as needed.
-
-| Endpoint         | 15min Limit | Priority | Fair Share       |
-| ---------------- | ----------- | -------- | ---------------- |
-| `fetch_mentions` | 15 req      | HIGH     | ✅ Yes           |
-| `get_user`       | 15 req      | MEDIUM   | ✅ Yes           |
-| `fetch_timeline` | 15 req      | MEDIUM   | ✅ Yes           |
-| `post_tweet`     | 15 req      | MEDIUM   | ❌ No (Priority) |
-| `reply_tweet`    | 15 req      | CRITICAL | ❌ No (Priority) |
-| `like_tweet`     | 15 req      | LOW      | ✅ Yes           |
-| `search_tweets`  | 15 req      | MEDIUM   | ✅ Yes           |
-
-### **🎯 Usage Monitoring**
+Helpful commands
 
 ```bash
-# Check current rate limit status
-sqlite3 glitchbot.db "SELECT endpoint, window_type, requests_used FROM rate_limits;"
-
-# Monitor rate limiting in real-time
-tail -f logs/glitchbot.log | grep "rate limit"
+npm run db:inspect   # database overview
+npm run queue:status # queue and rate‑limit snapshot
 ```
 
-## 🔧 Configuration
+## Documentation
 
-### **Environment Variables**
-
-```bash
-# Required
-VIRTUALS_API_KEY=your_virtuals_api_key
-
-# Twitter Authentication (choose one method)
-GAME_TWITTER_TOKEN=your_game_twitter_token
-# OR
-TWITTER_APP_KEY=your_app_key
-TWITTER_APP_SECRET=your_app_secret
-TWITTER_ACCESS_TOKEN=your_access_token
-TWITTER_ACCESS_SECRET=your_access_secret
-
-# Optional
-DATABASE_PATH=./glitchbot.db
-LOG_LEVEL=info
-OWNER_HANDLE=your_handle
-NODE_ENV=production
-```
-
-### **Worker Priorities**
-
-- **CRITICAL**: MentionsWorker (< 5 min response time)
-- **HIGH**: EngagementWorker (strategic content creation)
-- **MEDIUM**: DiscoveryWorker, CoordinationWorker (background processing)
-- **LOW**: MonitoringWorker, MaintenanceWorker (system maintenance)
-
-## 📈 Performance & Monitoring
-
-### **Health Metrics**
-
-- API rate limit utilization
-- Worker response times
-- Engagement success rates
-- Content quality scores
-- System resource usage
-
-### **Operational Alerts**
-
-- API rate limit warnings (>80%)
-- High error rates (>5%)
-- Worker performance degradation
-- Database size and performance issues
-
-## 🛠️ Database Management & Monitoring
-
-### **📊 Database Inspection Tools**
-
-Comprehensive tools for monitoring the mention queue system and database health:
-
-#### **Complete Database Inspector**
-
-```bash
-npm run db:inspect
-```
-
-- Shows all database tables with schemas and row counts
-- Special formatting for queue-related tables (`pending_mentions`, `mention_state`, etc.)
-- Database file information and comprehensive statistics
-- Queue analytics and system health overview
-
-#### **Quick Queue Status Check**
-
-```bash
-npm run queue:status
-```
-
-- Concise queue statistics and processing status
-- Rate limit usage across all endpoints
-- Recent activity summary and trends
-- Pending mentions organized by priority
-
-### **🔧 Database Management Commands**
-
-#### **Backup Database**
-
-```bash
-npm run db:backup
-```
-
-**Features:**
-
-- Creates timestamped backups in `./backups/` directory
-- Generates both binary (`.db`) and SQL dump (`.sql`) formats
-- Shows backup history and automatically cleans up old backups
-- Maintains last 10 backups automatically
-
-#### **Reset Database (Development Only)**
-
-```bash
-npm run db:reset          # Interactive reset with confirmation
-npm run db:reset:force    # Force reset for scripts (no confirmation)
-```
-
-**Safety Features:**
-
-- ⚠️ **Production Protection**: Automatically blocked in production environments
-- 💾 **Auto-Backup**: Creates backup before reset
-- 🔨 **Clean Rebuild**: Clears `dist/` and rebuilds fresh schema
-- ✅ **Verification**: Confirms all tables created successfully
-
-### **📖 Documentation**
-
-**Comprehensive Database Documentation:**
-
-- **[Database Schema Guide](./docs/database-schema.md)** - Complete schema reference, monitoring queries, troubleshooting procedures
-- **[Implementation Guide](./docs/implementation-guide.md)** - Development roadmap, testing procedures, success criteria
-
-### **🔍 Key Monitoring Metrics**
-
-- **Queue Health**: Pending vs completed mention ratios, processing success rates
-- **Processing Performance**: Completion percentage, throughput, retry statistics
-- **Rate Limits**: API usage across different endpoints and time windows
-- **System State**: Checkpoint consistency, worker activity, error patterns
-- **Data Integrity**: Duplicate detection, retry logic, queue persistence
-
-### **🚨 Operational Procedures**
-
-- **Daily Health Check**: `npm run queue:status` - Monitor queue depth and completion rates
-- **Weekly Backup**: `npm run db:backup` - Create safety backups
-- **Troubleshooting**: See [Database Schema docs](./docs/database-schema.md#operational-procedures) for detailed procedures
-
-## 🔄 Development Roadmap
-
-### **Current Status: Core Flows Implemented ✅**
-
-**✅ Architecture Complete:**
-
-- [x] 3-level G.A.M.E hierarchy implemented
-- [x] Specialized worker classes created
-- [x] Global coordination layer designed
-- [x] Atomic and workflow functions structured
-- [x] Database schema and persistence layer
-- [x] Comprehensive documentation
-
-**✅ MentionsWorker Foundation:**
-
-- [x] **`fetch_mentions` GameFunction** with Twitter API v2 integration
-- [x] **Enterprise Rate Limiting System** with automatic API protection
-- [x] **Comprehensive Error Handling** and structured logging
-- [x] **Test Framework** with 7 passing test cases
-- [x] **Real API Integration** with Twitter mentions timeline
-
-**✅ MentionsWorker Queue System:**
-
-- [x] **Persistent Mention Queue** with zero data loss guarantee
-- [x] **AI-Managed GameFunctions** for autonomous worker decisions
-- [x] **Rate-Limit-Aware Processing** handling 282:1 fetch/reply mismatch
-- [x] **Database Schema** with `pending_mentions` and `mention_state` tables
-- [x] **Complete Workflow** from fetch → store → process → reply → track
-- [x] **Production Testing** with real queue operations and monitoring
-- [x] **Database Inspection Tools** for debugging and monitoring
-
-**✅ Timeline Worker & Quoting:**
-
-- [x] `get_timeline` and `get_timeline_with_suggestion` (mix recent suggestions)
-- [x] `quote_tweet` with 1-hour cadence and duplicate prevention
-
-### **Next Phase**
-
-- [ ] Intent recognition and response templates for mentions
-- [ ] Advanced response handling and conversation context
-- [ ] Engagement/Discovery workers
-- [ ] Cross-worker coordination
-
-## 🤝 Contributing
-
-GlitchBot is built with extensibility in mind. The modular worker architecture makes it easy to add new capabilities:
-
-1. **Add new workers**: Extend the system with specialized workers for new platforms or capabilities
-2. **Create custom functions**: Implement domain-specific GameFunctions for unique behaviors
-3. **Enhance coordination**: Improve cross-worker communication and resource management
-4. **Optimize performance**: Contribute to monitoring, caching, and efficiency improvements
-
-## 📄 License
-
-[License file details]
-
----
-
-**GlitchBot**: Autonomous. Intelligent. Community-focused.
+- `docs/architecture-overview.md`
+- `docs/workers/mentions-worker.md`
+- `docs/workers/timeline-worker.md`
+- `docs/database-schema.md`
