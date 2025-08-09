@@ -9,12 +9,12 @@
 ### ✅ **COMPLETED - Production Ready**
 
 - **Context-Aware Processing**: Understands and references shared content in responses
-- **Candidate Tweet Storage**: Automatically captures and stores referenced tweets for curation
-- **Enhanced Mention Queue**: Zero data loss with candidate tweet context linking
+- **Suggested Tweet Storage**: Automatically captures and stores referenced tweets for curation
+- **Enhanced Mention Queue**: Zero data loss with suggested tweet context linking
 - **Twitter API v2 Integration**: Full mention fetching with includes data (tweets, users, metrics)
 - **Enterprise Rate Limiting**: Automatic tracking across 15min/hour/day windows
 - **Intelligent Response System**: Context-aware replies that reference specific content and authors
-- **Database Integration**: Seamless linking between mentions and candidate tweets via mention_id
+- **Database Integration**: Seamless linking between mentions and suggested tweets via mention_id
 - **Error Handling**: Comprehensive retry logic and graceful failure recovery
 
 ### 🚀 **Key Features Implemented**
@@ -44,13 +44,13 @@ The **MentionsWorker** is GlitchBot's intelligent content acknowledgment system.
 - **Response Time**: ~180 seconds per cycle with intelligent processing
 - **Triggers**: @mentions on Twitter (especially content sharing)
 - **Personality**: Grateful, curious, community-minded with context awareness
-- **Execution**: Continuous loops with rate-limit management and candidate tweet processing
+- **Execution**: Continuous loops with rate-limit management and suggested tweet processing
 
 ### **Operational Behavior**
 
 - **Context-driven**: Analyzes shared content to provide intelligent responses
 - **Content-aware**: References specific tweets, authors, and topics in replies
-- **Database-integrated**: Links mentions to candidate tweets for full context
+- **Database-integrated**: Links mentions to suggested tweets for full context
 - **Engagement-aware**: Notes viral content and high-engagement metrics
 - **Crash-resistant**: Queue survives process restarts and failures
 - **Retry-capable**: Failed mentions automatically retry up to 3 times
@@ -63,8 +63,8 @@ The **MentionsWorker** is GlitchBot's intelligent content acknowledgment system.
 
 - **Auto-checkpoint Management**: Reads last processed mention ID from database
 - **Twitter API v2 Integration**: Fetches mentions with includes data (tweets, users, metrics)
-- **Candidate Tweet Storage**: Automatically stores referenced tweets as candidate_tweets
-- **Enhanced Linkage**: Links candidate tweets to their originating mentions via mention_id
+- **Suggested Tweet Storage**: Automatically stores referenced tweets as suggested_tweets
+- **Enhanced Linkage**: Links suggested tweets to their originating mentions via mention_id
 - **Comprehensive Logging**: Tracks linkage quality and processing status
 
 **Key Features**:
@@ -80,13 +80,13 @@ The **MentionsWorker** is GlitchBot's intelligent content acknowledgment system.
 
 - **Status Filtering**: Retrieves mentions by status (pending, processing, completed, failed)
 - **Priority Sorting**: Orders by priority (high to low) and age (oldest first)
-- **Candidate Tweet Context**: Includes related candidate tweets for each mention
+- **Suggested Tweet Context**: Includes related suggested tweets for each mention
 - **Statistics**: Provides counts and processing insights
 - **Enhanced Data Structure**: Full context for intelligent worker responses
 
 **Key Features**:
 
-- Links mentions to their candidate tweets via `discovered_via_mention_id`
+- Links mentions to their suggested tweets via `discovered_via_mention_id`
 - Provides full tweet content, author, and metrics for context
 - Enables workers to understand what content users are sharing
 - Supports batch processing with configurable limits
@@ -112,7 +112,7 @@ The **MentionsWorker** is GlitchBot's intelligent content acknowledgment system.
 **Worker**: `mentions-worker.ts`
 
 - **Smart Flow Management**: Processes existing queue before fetching new mentions
-- **Context-Aware Responses**: Uses candidate tweet data for intelligent replies
+- **Context-Aware Responses**: Uses suggested tweet data for intelligent replies
 - **Rate Limit Optimization**: Respects Twitter API limits with efficient processing
 - **Continuous Operation**: Runs in loops with 180-second intervals
 
@@ -120,7 +120,7 @@ The **MentionsWorker** is GlitchBot's intelligent content acknowledgment system.
 
 1. **Assessment**: Check pending mentions queue status
 2. **Conditional Fetch**: Only fetch new mentions if queue is low (<2 mentions)
-3. **Context Processing**: Analyze mentions with their candidate tweet context
+3. **Context Processing**: Analyze mentions with their suggested tweet context
 4. **Intelligent Reply**: Generate context-aware responses referencing specific content
 5. **Status Update**: Mark mentions as completed and track engagement
 
@@ -200,18 +200,13 @@ Bot: "Great question about AI safety @user! It's crucial we develop
 - Priority-based selection (oldest first currently)
 - Marks mentions as 'processing' to prevent duplicates
 
-### **✅ `reply_to_tweet`** - Post Replies
+### **✅ `reply_mention`** - Post Replies
 
 **Type**: Atomic Function  
 **Status**: ✅ **FULLY IMPLEMENTED**  
 **Purpose**: Send public replies to mentions
 
-**Current Response**:
-
-```typescript
-// Simple acknowledgment for ALL mentions
-const responseText = `Thanks for mentioning me, @${mention.author_username}! 🤖`;
-```
+Generates contextual acknowledgments referencing suggested tweet context when available, with author attribution and engagement awareness.
 
 **Features**:
 

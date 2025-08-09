@@ -6,12 +6,12 @@ This document provides comprehensive documentation for GlitchBot's SQLite databa
 
 **File:** `glitchbot.db` (SQLite)  
 **Location:** Project root directory  
-**Purpose:** Persistent storage for context-aware mentions queue, candidate tweet curation, rate limiting, engagement tracking, and system state  
+**Purpose:** Persistent storage for context-aware mentions queue, suggested tweet curation, rate limiting, engagement tracking, and system state  
 **Architecture:** Centralized DatabaseManager with enhanced mention-to-content linkage system
 
 ### **🎯 Core Innovation: Mention→Content Linkage**
 
-The database now features a sophisticated linkage system between `PENDING_MENTIONS` and `CANDIDATE_TWEETS` via the `discovered_via_mention_id` field, enabling intelligent context-aware responses.
+The database now features a sophisticated linkage system between `PENDING_MENTIONS` and `SUGGESTED_TWEETS` via the `discovered_via_mention_id` field, enabling intelligent context-aware responses.
 
 ## 🏗️ **Database Architecture**
 
@@ -102,12 +102,12 @@ CREATE TABLE mention_state (
 - `last_since_id`: Latest mention ID processed (Twitter pagination)
 - `last_fetch_time`: Timestamp of last successful fetch operation
 
-### **3. CANDIDATE_TWEETS - Content Curation System**
+### **3. SUGGESTED_TWEETS - Content Curation System**
 
 **Purpose:** Stores curated content referenced in mentions for intelligent response context
 
 ```sql
-CREATE TABLE candidate_tweets (
+CREATE TABLE suggested_tweets (
   tweet_id TEXT PRIMARY KEY,               -- Referenced tweet ID
   author_id TEXT NOT NULL,                 -- Original tweet author ID
   author_username TEXT NOT NULL,           -- Original tweet author username
@@ -120,8 +120,8 @@ CREATE TABLE candidate_tweets (
 );
 
 -- Critical index for mention→content linkage
-CREATE INDEX idx_candidate_discovered_via ON candidate_tweets(discovered_via_mention_id);
-CREATE INDEX idx_candidate_score ON candidate_tweets(curation_score DESC);
+CREATE INDEX idx_candidate_discovered_via ON suggested_tweets(discovered_via_mention_id);
+CREATE INDEX idx_candidate_score ON suggested_tweets(curation_score DESC);
 ```
 
 **🔗 Key Innovation: Mention→Content Linkage**
@@ -130,22 +130,31 @@ The `discovered_via_mention_id` field creates a direct link between mentions and
 
 - When user posts: `@glitchbot_ai check this out!` + references @sama's tweet
 - `pending_mentions` stores the mention with `mention_id = "123"`
-- `candidate_tweets` stores @sama's tweet with `discovered_via_mention_id = "123"`
+- `suggested_tweets` stores @sama's tweet with `discovered_via_mention_id = "123"`
 - Worker retrieves mention with context: "User shared @sama's AI research paper"
 - Response: "Fascinating research from @sama! Thanks for flagging this @user 🤖"
 
-### **4. ENGAGED_TWEETS - Duplicate Prevention**
+### **4. ENGAGEMENT TRACKING - Duplicate Prevention**
 
-**Purpose:** Records all bot interactions to prevent duplicate replies
+**Purpose:** Records bot interactions to prevent duplicates (replies and quotes)
 
 ```sql
-CREATE TABLE engaged_tweets (
-  tweet_id TEXT PRIMARY KEY,               -- Tweet ID we interacted with
-  engaged_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,  -- When we engaged
-  action TEXT CHECK(action IN ('reply','quote','like')) NOT NULL  -- Type of engagement
+-- Replies and likes
+CREATE TABLE engaged_mentions (
+  mention_id TEXT PRIMARY KEY,
+  engaged_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  action TEXT CHECK(action IN ('reply','like')) NOT NULL
 );
 
-CREATE INDEX idx_engaged_at ON engaged_tweets(engaged_at);
+-- Quotes
+CREATE TABLE engaged_quotes (
+  tweet_id TEXT PRIMARY KEY,
+  engaged_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  action TEXT DEFAULT 'quote' NOT NULL
+);
+
+CREATE INDEX idx_engaged_mentions_at ON engaged_mentions(engaged_at);
+CREATE INDEX idx_engaged_quotes_at ON engaged_quotes(engaged_at);
 ```
 
 ### **5. RATE_LIMITS - API Protection**
@@ -179,7 +188,19 @@ CREATE TABLE cadence (
 );
 ```
 
-**Note:** Currently unused in Step 1.2, will be activated in Step 1.3 for advanced timing controls.
+Used for quote/reply cadence tracking. Current guards: 1 hour between quotes; 60 seconds between replies.
+
+### **7. TIMELINE_STATE - Timeline Pagination**
+
+```sql
+CREATE TABLE timeline_state (
+  key TEXT PRIMARY KEY,
+  value TEXT,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+```
+
+Used by `get_timeline` to manage newest_id and pagination token.
 
 ## 🔄 **Queue System Operations**
 

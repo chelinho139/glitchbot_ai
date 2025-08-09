@@ -1,5 +1,6 @@
 import { GameWorker } from "@virtuals-protocol/game";
 import getTimelineFunction from "../functions/timeline/get-timeline";
+import getTimelineWithSuggestionFunction from "../functions/timeline/get-timeline-with-suggestion";
 import quoteTweetFunction from "../functions/timeline/quote-tweet";
 
 /**
@@ -46,7 +47,11 @@ const timelineWorker = new GameWorker({
     SAFETY GUARANTEE:
     This worker will NEVER process or quote-tweet content outside of AI/crypto/software/tech domains, ensuring safe and relevant output regardless of which agent calls it.
   `,
-  functions: [getTimelineFunction, quoteTweetFunction],
+  functions: [
+    getTimelineFunction,
+    getTimelineWithSuggestionFunction,
+    quoteTweetFunction,
+  ],
 });
 
 export default timelineWorker;

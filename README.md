@@ -45,15 +45,19 @@ GlitchBot implements the complete 3-level G.A.M.E hierarchy:
   - **Context-aware responses** to mentions with content understanding (< 3 minutes)
   - **Intelligent content acknowledgment** that references specific shared tweets and authors
   - **Community building** through author attribution and engagement insights
-  - **Candidate tweet curation** with automatic storage and mention linkage
+
+- **Suggested tweet curation** with automatic storage and mention linkage
+
   - Handles "@GlitchBot check this out!" scenarios with genuine content understanding
 
-- **📈 EngagementWorker** - _HIGH Priority_
+- **🧵 Timeline Worker** - _HIGH Priority_ ✅ IMPLEMENTED
 
-  - Proactive content creation and quote tweets
-  - Strategic replies to valuable conversations
-  - Respects 2-hour cadence for quotes, 60s for replies
-  - Quality-focused content strategy (score > 15/20)
+  - Fetches home timeline with `get_timeline`
+  - Mixes in recent community suggestions with `get_timeline_with_suggestion`
+  - Posts quote tweets via `quote_tweet` with strict author-username discipline
+  - 1-hour quote cadence guard, duplicate prevention via `engaged_quotes`
+
+- **📈 EngagementWorker** - _HIGH Priority_ (planned)
 
 - **🔍 DiscoveryWorker** - _MEDIUM Priority_
   - Continuous content discovery and curation
@@ -184,7 +188,7 @@ npm run test
 ### **Operational Rules**
 
 - **Sleep Schedule**: 05:00-13:00 UTC (quiet hours)
-- **Quote Cadence**: Minimum 2 hours between quote tweets
+- **Quote Cadence**: Minimum 1 hour between quote tweets
 - **Reply Cadence**: Minimum 60 seconds between replies (relaxed for mentions)
 - **API Respect**: Intelligent rate limiting and error handling
 
@@ -249,13 +253,17 @@ const twitterClient = createRateLimitedTwitterClient({
 
 ### **📋 Configured API Endpoints**
 
+Current testing defaults: ~1 request/minute per endpoint (15 per 15 minutes). Adjust in code as needed.
+
 | Endpoint         | 15min Limit | Priority | Fair Share       |
 | ---------------- | ----------- | -------- | ---------------- |
-| `fetch_mentions` | 75 req      | HIGH     | ✅ Yes           |
-| `get_user`       | 300 req     | MEDIUM   | ✅ Yes           |
-| `reply_tweet`    | 50 req      | CRITICAL | ❌ No (Priority) |
-| `like_tweet`     | 75 req      | LOW      | ✅ Yes           |
-| `search_tweets`  | 180 req     | MEDIUM   | ✅ Yes           |
+| `fetch_mentions` | 15 req      | HIGH     | ✅ Yes           |
+| `get_user`       | 15 req      | MEDIUM   | ✅ Yes           |
+| `fetch_timeline` | 15 req      | MEDIUM   | ✅ Yes           |
+| `post_tweet`     | 15 req      | MEDIUM   | ❌ No (Priority) |
+| `reply_tweet`    | 15 req      | CRITICAL | ❌ No (Priority) |
+| `like_tweet`     | 15 req      | LOW      | ✅ Yes           |
+| `search_tweets`  | 15 req      | MEDIUM   | ✅ Yes           |
 
 ### **🎯 Usage Monitoring**
 
@@ -394,7 +402,7 @@ npm run db:reset:force    # Force reset for scripts (no confirmation)
 
 ## 🔄 Development Roadmap
 
-### **Current Status: Phase 1 Week 1 Complete ✅**
+### **Current Status: Core Flows Implemented ✅**
 
 **✅ Architecture Complete:**
 
@@ -405,7 +413,7 @@ npm run db:reset:force    # Force reset for scripts (no confirmation)
 - [x] Database schema and persistence layer
 - [x] Comprehensive documentation
 
-**✅ MentionsWorker Foundation (Step 1.1):**
+**✅ MentionsWorker Foundation:**
 
 - [x] **`fetch_mentions` GameFunction** with Twitter API v2 integration
 - [x] **Enterprise Rate Limiting System** with automatic API protection
@@ -413,7 +421,7 @@ npm run db:reset:force    # Force reset for scripts (no confirmation)
 - [x] **Test Framework** with 7 passing test cases
 - [x] **Real API Integration** with Twitter mentions timeline
 
-**✅ MentionsWorker Queue System (Step 1.2):**
+**✅ MentionsWorker Queue System:**
 
 - [x] **Persistent Mention Queue** with zero data loss guarantee
 - [x] **AI-Managed GameFunctions** for autonomous worker decisions
@@ -423,12 +431,17 @@ npm run db:reset:force    # Force reset for scripts (no confirmation)
 - [x] **Production Testing** with real queue operations and monitoring
 - [x] **Database Inspection Tools** for debugging and monitoring
 
-### **Next Phase: Complete MentionsWorker Implementation**
+**✅ Timeline Worker & Quoting:**
 
-- [ ] Step 1.3: Basic intent recognition and response templates
-- [ ] Step 1.4: Advanced response handling and conversation context
-- [ ] Worker orchestration and coordination
-- [ ] Real-time cross-worker communication
+- [x] `get_timeline` and `get_timeline_with_suggestion` (mix recent suggestions)
+- [x] `quote_tweet` with 1-hour cadence and duplicate prevention
+
+### **Next Phase**
+
+- [ ] Intent recognition and response templates for mentions
+- [ ] Advanced response handling and conversation context
+- [ ] Engagement/Discovery workers
+- [ ] Cross-worker coordination
 
 ## 🤝 Contributing
 

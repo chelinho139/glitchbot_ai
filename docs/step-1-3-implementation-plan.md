@@ -23,7 +23,7 @@
 **What We Found:**
 
 - ✅ **Phase 1A**: Enhanced API data collection (COMPLETE)
-- ✅ **Phase 1B**: Database schema with candidate_tweets table (COMPLETE)
+- ✅ **Phase 1B**: Database schema with suggested_tweets table (COMPLETE)
 - ✅ **Phase 1C**: Referenced tweet extraction **ALREADY IMPLEMENTED** in `fetch-mentions.ts`!
 
 **Time Saved:** 45 minutes! We can jump directly to **Phase 2A: Content Scoring**
@@ -81,11 +81,11 @@ expansions: [
 
 ### **Phase 1B: Database Schema Update (15 mins)**
 
-_Goal: Add candidate_tweets table for storing interesting content_
+_Goal: Add suggested_tweets table for storing interesting content_
 
 #### **Tasks:**
 
-- [x] **Add `candidate_tweets` table** to `DatabaseManager.createEngagementSchema()`
+- [x] **Add `suggested_tweets` table** to `DatabaseManager.createEngagementSchema()`
   - [x] Add table creation SQL to `createEngagementSchema()`
   - [x] Add appropriate indexes for performance
   - [x] Test schema migration
@@ -93,14 +93,14 @@ _Goal: Add candidate_tweets table for storing interesting content_
   - [x] Backup existing database (automatic with WAL mode)
   - [x] Run schema update
   - [x] Verify existing data intact
-- [x] **Add helper interfaces** for candidate tweet operations
-  - [x] Create `CandidateTweet` interface
+- [x] **Add helper interfaces** for suggested tweet operations
+- [x] Create `SuggestedTweet` interface
   - [x] Add to exports in appropriate files
 
 #### **Database Schema:**
 
 ```sql
-CREATE TABLE IF NOT EXISTS candidate_tweets (
+CREATE TABLE IF NOT EXISTS suggested_tweets (
   tweet_id TEXT PRIMARY KEY,                -- Original tweet ID (not mention ID)
   author_id TEXT NOT NULL,                  -- Original author ID
   author_username TEXT NOT NULL,            -- Original author username
@@ -112,17 +112,17 @@ CREATE TABLE IF NOT EXISTS candidate_tweets (
   curation_score REAL DEFAULT 0            -- Content quality score (0-20)
 );
 
-CREATE INDEX IF NOT EXISTS idx_candidate_tweets_score
-  ON candidate_tweets(curation_score DESC);
-CREATE INDEX IF NOT EXISTS idx_candidate_tweets_discovery
-  ON candidate_tweets(discovery_timestamp DESC);
+CREATE INDEX IF NOT EXISTS idx_suggested_tweets_score
+  ON suggested_tweets(curation_score DESC);
+CREATE INDEX IF NOT EXISTS idx_suggested_tweets_discovery
+  ON suggested_tweets(discovery_timestamp DESC);
 ```
 
 #### **Success Criteria:**
 
 - [x] Database creates new table without errors
 - [x] Existing data remains intact
-- [x] Can insert/query candidate tweets
+- [x] Can insert/query suggested tweets
 - [x] Indexes created for performance
 
 ---
@@ -231,13 +231,13 @@ interface ContentAnalysis {
 
 ---
 
-### **🎉 Phase 2B: Candidate Tweet Storage (COMPLETE!)**
+### **🎉 Phase 2B: Suggested Tweet Storage (COMPLETE!)**
 
 _Goal: Store interesting referenced tweets in database_
 
 #### **Tasks:**
 
-- [x] **Create storage GameFunction** `store_candidate_tweet`
+- [x] **Create storage GameFunction** `store_suggested_tweet`
   - [x] Create new file `src/functions/atomic/utilities/store-candidate-tweet.ts`
   - [x] Implement storage logic with deduplication
   - [x] Add comprehensive error handling
@@ -274,7 +274,7 @@ _Goal: Store interesting referenced tweets in database_
 
 #### **Success Criteria:**
 
-- [x] High-quality referenced tweets stored in candidate_tweets table
+- [x] High-quality referenced tweets stored in suggested_tweets table
 - [x] Low-quality content filtered out
 - [x] No duplicates stored (tweet_id PRIMARY KEY handles this)
 - [x] Storage criteria working correctly
@@ -404,13 +404,13 @@ _Goal: Update mention priority based on content quality_
 - [x] **Day 2**: ~~Phase 2A (Content Scoring)~~ **COMPLETE!**
   - [x] ~~Full day~~ **Faster delivery**: Content scoring algorithm implementation ✅
 - [x] **Day 2**: ~~Phase 2B (Tweet Storage)~~ **COMPLETE!**
-  - [x] ~~Full day~~ **Same day delivery**: Candidate tweet storage implementation ✅
+- [x] ~~Full day~~ **Same day delivery**: Suggested tweet storage implementation ✅
   - 🎉 **Ahead of schedule!** Phase 2 complete in 1 day vs planned 2 days
 
 ### **Week 2: ACCELERATED SCHEDULE!**
 
 - [x] **Day 1**: ~~Phase 2B (Tweet Storage)~~ **ALREADY COMPLETE!** ✅
-  - [x] ~~Full day: Candidate tweet storage~~ **DONE EARLY** ✅
+- [x] ~~Full day: Suggested tweet storage~~ **DONE EARLY** ✅
 - [ ] **Day 2**: Phase 3A (Smart Responses)
   - [ ] Full day: Content-aware response generation
 - [ ] **Day 3**: Phase 3B (Priority Processing) + Testing
@@ -442,8 +442,8 @@ _Goal: Update mention priority based on content quality_
 
 - [ ] Database schema creates successfully
 - [ ] Existing data remains intact
-- [ ] Can insert candidate tweets
-- [ ] Can query candidate tweets
+- [ ] Can insert suggested tweets
+- [ ] Can query suggested tweets
 - [ ] Indexes improve query performance
 
 #### **Phase 1C Testing:**
@@ -489,7 +489,7 @@ _Goal: Update mention priority based on content quality_
 ### **Example Manual Tests:**
 
 - [ ] **Test Scenario 1**: `@glitchbot_ai check out this breaking news!` (with news article)
-  - [ ] Expected: High content score, news-style response, stored in candidate_tweets
+- [ ] Expected: High content score, news-style response, stored in suggested_tweets
 - [ ] **Test Scenario 2**: `@glitchbot_ai what do you think about this opinion?` (with opinion tweet)
   - [ ] Expected: Medium content score, opinion-style response, may be stored
 - [ ] **Test Scenario 3**: `@glitchbot_ai help me understand this` (with technical content)
@@ -502,7 +502,7 @@ _Goal: Update mention priority based on content quality_
 ### **🎉 Phase 1: COMPLETE!**
 
 - [x] ✅ Complete referenced tweet data available in API response
-- [x] ✅ Database schema updated with candidate_tweets table
+- [x] ✅ Database schema updated with suggested_tweets table
 - [x] ✅ Referenced tweet extraction working correctly (already built-in to fetch-mentions!)
 
 ### **🎉 Phase 1A: COMPLETE & VALIDATED!**
@@ -517,10 +517,10 @@ _Goal: Update mention priority based on content quality_
 
 ### **🎉 Phase 1B: COMPLETE & VALIDATED!**
 
-- [x] ✅ `candidate_tweets` table created in DatabaseManager
+- [x] ✅ `suggested_tweets` table created in DatabaseManager
 - [x] ✅ Complete schema with all required fields (author, content, metrics, scoring)
 - [x] ✅ Performance indexes created (score DESC, discovery DESC, author)
-- [x] ✅ Updated `CandidateTweet` interface to match database schema
+- [x] ✅ Updated `SuggestedTweet` interface to match database schema
 - [x] ✅ Successful database migration (existing data intact)
 - [x] ✅ Full CRUD operations tested and working
 - [x] ✅ Ready for referenced tweet storage in upcoming phases
@@ -555,7 +555,7 @@ _Goal: Update mention priority based on content quality_
 - [x] ✅ Storage criteria **OPTIMIZED**: score ≥10, engagement ≥50, followers ≥500
 - [x] ✅ Viral content detection working perfectly (648 engagement recognized)
 - [x] ✅ Trending keywords detection (Bitcoin, AI, GPT, ChatGPT, etc.)
-- [x] ✅ Duplicate prevention with `candidateTweetExists()` check
+- [x] ✅ Duplicate prevention with `suggestedTweetExists()` check
 - [x] ✅ **Production results**: @VraserX tweet stored successfully
 - [x] ✅ Performance optimized with database indexes
 - [x] ✅ Comprehensive logging and monitoring
@@ -602,7 +602,7 @@ _Goal: Update mention priority based on content quality_
 
 ### **Future Integration Points:**
 
-- [ ] Candidate tweets will feed DiscoveryWorker
+- [ ] Suggested tweets will feed DiscoveryWorker
 - [ ] Content scoring will inform EngagementWorker
 - [ ] Priority system will support advanced scheduling
 - [ ] Response templates will enable personality development

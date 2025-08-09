@@ -15,7 +15,7 @@ GlitchBot follows the **separation of concerns** principle with clear hierarchic
 
 ### **GlitchBotAgent** - Strategic Decision Maker
 
-**Location**: `src/agents/glitchbot/glitchbot-agent.ts`
+**Location**: `src/glitchbot-agent.ts`
 
 **Purpose**: The top-level orchestrator that makes strategic decisions about:
 
@@ -48,7 +48,7 @@ Workers are organized by **priority levels** and **specialization domains**:
 
 ##### **MentionsWorker** - Real-Time Social Interactions
 
-**Location**: `src/workers/twitter/mentions-worker.ts`
+**Location**: `src/workers/mentions-worker.ts`
 
 **Response Time**: < 5 minutes for mentions, immediate for DMs
 
@@ -78,9 +78,21 @@ Workers are organized by **priority levels** and **specialization domains**:
 
 #### **📈 HIGH Priority Workers**
 
-##### **EngagementWorker** - Content Creation & Strategic Engagement
+##### **Timeline Worker** - Home Timeline + Quoting
 
-**Location**: `src/workers/twitter/engagement-worker.ts`
+**Location**: `src/workers/timeline-worker.ts`
+
+**Core Functions**:
+
+- `get_timeline` - Fetches home timeline content (excludes self)
+- `get_timeline_with_suggestion` - Mixes in recent suggested tweets from mentions
+- `quote_tweet` - Posts quote tweets with strict author username discipline and 1h cadence
+
+**Characteristics**:
+
+- Topic filtering (AI/crypto/software/tech only) enforced at worker description level
+- Duplicate prevention via `engaged_quotes`
+- Cadence enforcement via `cadence` table (1 hour)
 
 **Response Time**: Cadence-driven (respects timing rules)
 
@@ -260,7 +272,7 @@ Input → Discovery → Scoring → Filtering → Caching → Engagement
 
 **Cleanup Rules**:
 
-- Candidate tweets: Remove after 24 hours or if score < 5
+- Suggested tweets: Remove after 24 hours or if score < 5
 - Engagement records: Archive after 30 days, delete after 1 year
 - Error logs: Keep 30 days, archive up to 6 months
 - Performance logs: Keep 7 days, archive up to 3 months
@@ -272,7 +284,10 @@ Input → Discovery → Scoring → Filtering → Caching → Engagement
 
 #### **Atomic Functions (Single-Purpose)**
 
-**Location**: `src/functions/atomic/`
+Implemented locations:
+
+- Mentions: `src/functions/mentions/*`
+- Timeline/Quoting: `src/functions/timeline/*`
 
 **Social/Twitter Functions**:
 
@@ -283,11 +298,9 @@ Input → Discovery → Scoring → Filtering → Caching → Engagement
 - `like_tweet` - Like interesting content
 - `send_dm` - Send private messages
 
-**Analytics Functions**:
+**Analytics Functions** (helpers present):
 
-- `score_content` - Rate content quality (1-20 scale)
-- `analyze_sentiment` - Evaluate content sentiment
-- `track_engagement` - Monitor post performance
+- `lib/ranking.ts` - Scoring utilities
 
 **Utility Functions**:
 
@@ -337,7 +350,7 @@ Input → Discovery → Scoring → Filtering → Caching → Engagement
 - `like` - Like engagement
 - `analysis` - Content analysis lock
 
-### **ReservationManager**
+### **ReservationManager** (placeholder)
 
 **Location**: `src/persistence/global/reservation-manager.ts`
 
@@ -412,7 +425,7 @@ RateLimiter: Ensures API quota availability
 Post published & engagement tracked
 ```
 
-### **System Event Broadcasting**
+### **System Event Broadcasting** (future)
 
 ```
 MonitoringWorker: Detects API rate limit at 85%

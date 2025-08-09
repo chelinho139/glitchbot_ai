@@ -205,14 +205,10 @@ export const fetchMentionsFunction = new GameFunction({
       let effectiveSinceId: string | undefined;
       try {
         const db = new GlitchBotDB();
-        const checkpoint = db.database
-          .prepare(
-            "SELECT value FROM mention_state WHERE key = 'last_since_id'"
-          )
-          .get() as any;
+        const lastSince = db.getLastMentionSinceId();
 
-        if (checkpoint?.value) {
-          effectiveSinceId = checkpoint.value;
+        if (lastSince) {
+          effectiveSinceId = lastSince;
           console.log("✅ Found checkpoint:", effectiveSinceId);
           appLogger.info(
             { checkpoint_since_id: effectiveSinceId },
@@ -534,7 +530,7 @@ export const fetchMentionsFunction = new GameFunction({
       if (apiResponse.data.includes) {
         result.includes = {};
 
-        // Process included tweets (referenced tweets) and store as candidate tweets
+        // Process included tweets (referenced tweets) and store as suggested tweets
         if (apiResponse.data.includes.tweets) {
           result.includes.tweets = apiResponse.data.includes.tweets.map(
             (tweet: any) => ({
@@ -558,13 +554,13 @@ export const fetchMentionsFunction = new GameFunction({
             })
           );
 
-          // Store referenced tweets as candidate tweets using the includes data
+          // Store referenced tweets as suggested tweets using the includes data
           for (const includedTweet of apiResponse.data.includes.tweets) {
             try {
-              // Check if this tweet is already stored as a candidate
+              // Check if this tweet is already stored as a suggested tweet
               const existingCandidate = db.database
                 .prepare(
-                  `SELECT tweet_id FROM candidate_tweets WHERE tweet_id = ?`
+                  `SELECT tweet_id FROM suggested_tweets WHERE tweet_id = ?`
                 )
                 .get(includedTweet.id);
 
@@ -611,10 +607,10 @@ export const fetchMentionsFunction = new GameFunction({
                         ? "linked"
                         : "orphaned",
                   },
-                  "fetch_mentions: Processing candidate tweet linkage"
+                  "fetch_mentions: Processing suggested tweet linkage"
                 );
 
-                // Create candidate tweet using the includes data (like legacy system)
+                // Create suggested tweet using the includes data (like legacy system)
                 const candidateTweet: any = {
                   tweet_id: includedTweet.id,
                   author_id: includedTweet.author_id,
@@ -633,7 +629,7 @@ export const fetchMentionsFunction = new GameFunction({
                   );
                 }
 
-                db.addCandidateTweet(candidateTweet);
+                db.addSuggestedTweet(candidateTweet);
 
                 appLogger.info(
                   {
@@ -705,7 +701,7 @@ export const fetchMentionsFunction = new GameFunction({
       console.log("🆔 Newest ID:", result.meta.newest_id || "none");
       console.log("🆔 Oldest ID:", result.meta.oldest_id || "none");
 
-      // Log linkage summary for candidate tweets
+      // Log linkage summary for suggested tweets
       if (result.includes?.tweets) {
         console.log(
           "🔗 Referenced tweets found:",
@@ -736,26 +732,11 @@ export const fetchMentionsFunction = new GameFunction({
         );
         try {
           const db = new GlitchBotDB();
-          const now = new Date().toISOString();
-
-          // Update the checkpoint
-          db.database
-            .prepare(
-              "INSERT OR REPLACE INTO mention_state (key, value, updated_at) VALUES ('last_since_id', ?, ?)"
-            )
-            .run(result.meta.newest_id, now);
-
-          // Also update last fetch time
-          db.database
-            .prepare(
-              "INSERT OR REPLACE INTO mention_state (key, value, updated_at) VALUES ('last_fetch_time', ?, ?)"
-            )
-            .run(now, now);
+          db.setMentionCheckpoint(result.meta.newest_id);
 
           appLogger.info(
             {
               new_checkpoint: result.meta.newest_id,
-              updated_at: now,
             },
             "fetch_mentions: Checkpoint updated automatically"
           );

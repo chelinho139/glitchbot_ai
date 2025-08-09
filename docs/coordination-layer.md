@@ -338,43 +338,9 @@ The **RateLimiter** provides **automatic, transparent rate limiting** for all Tw
 - **`per_hour`**: Hourly rolling window
 - **`per_day`**: Daily rolling window
 
-#### **Endpoint-specific Limits** ✅ **CONFIGURED**
+#### **Endpoint-specific Limits** (Testing defaults in code)
 
-```typescript
-// Actual implementation from src/persistence/global/rate-limiter.ts
-const RATE_LIMITS = {
-  fetch_mentions: {
-    requests_per_15min: 75,
-    requests_per_hour: 300,
-    requests_per_day: 7200,
-    worker_fair_share: true,
-  },
-  get_user: {
-    requests_per_15min: 300,
-    requests_per_hour: 1200,
-    requests_per_day: 28800,
-    worker_fair_share: true,
-  },
-  reply_tweet: {
-    requests_per_15min: 50,
-    requests_per_hour: 200,
-    requests_per_day: 2400,
-    worker_fair_share: false, // CRITICAL priority
-  },
-  like_tweet: {
-    requests_per_15min: 75,
-    requests_per_hour: 300,
-    requests_per_day: 7200,
-    worker_fair_share: true,
-  },
-  search_tweets: {
-    requests_per_15min: 180,
-    requests_per_hour: 720,
-    requests_per_day: 17280,
-    worker_fair_share: true,
-  },
-};
-```
+Limits are currently set around 1 req/min per endpoint (15 per 15 minutes) for development, configurable in `src/persistence/global/rate-limiter.ts`.
 
 ### 🚀 **Actual Implementation: Transparent Proxy Design**
 

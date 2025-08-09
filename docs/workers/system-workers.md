@@ -6,7 +6,7 @@ This document covers the three system-level workers that manage GlitchBot's infr
 
 **Priority**: MEDIUM  
 **Response Time**: Real-time (event-driven)  
-**Location**: `src/workers/system/coordination-worker.ts`
+**Location**: (planned)
 
 ### 🎯 Purpose & Responsibilities
 
@@ -224,7 +224,7 @@ System: Continues operating within limits
 
 **Priority**: LOW  
 **Response Time**: Background (15-30 min cycles)  
-**Location**: `src/workers/system/monitoring-worker.ts`
+**Location**: (planned)
 
 ### 🎯 Purpose & Responsibilities
 
@@ -408,7 +408,7 @@ The **MonitoringWorker** continuously monitors system health, performance, and o
 
 **Priority**: LOW  
 **Response Time**: Daily (during sleep window)  
-**Location**: `src/workers/system/maintenance-worker.ts`
+**Location**: (planned)
 
 ### 🎯 Purpose & Responsibilities
 
@@ -556,7 +556,7 @@ async cleanupOldTweets() {
 
 #### **Content Cleanup**
 
-- **Candidate tweets**: Remove after 24 hours or if score < 5
+- **Suggested tweets**: Remove after 24 hours or if score < 5
 - **Processed content**: Remove after engagement is recorded
 - **Duplicate content**: Remove based on similarity detection
 - **Low-quality content**: Remove based on quality thresholds

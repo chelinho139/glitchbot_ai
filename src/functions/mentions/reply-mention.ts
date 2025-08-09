@@ -22,7 +22,7 @@ export interface ReplyMentionResult {
 export const replyMentionFunction = new GameFunction({
   name: "reply_mention",
   description:
-    "Reply to a specific mention and mark it as processed in the database. This is the final step in the mentions workflow. Referenced tweets are automatically fetched and stored as candidate tweets during the mention fetch process, so this function focuses solely on posting the reply and updating the mention status to 'completed'.",
+    "Reply to a specific mention and mark it as processed in the database. This is the final step in the mentions workflow. Referenced tweets are automatically fetched and stored as suggested tweets during the mention fetch process, so this function focuses solely on posting the reply and updating the mention status to 'completed'.",
   args: [
     { name: "mention_id", description: "ID of mention/tweet to reply to" },
     { name: "reply_text", description: "The reply content (max 280 chars)" },
@@ -151,7 +151,7 @@ export const replyMentionFunction = new GameFunction({
         }
       }
 
-      // Store the mentioned tweet as a candidate tweet and mark mention as processed
+      // Store the mentioned tweet as a suggested tweet and mark mention as processed
       let processed = false;
       let storedAsCandidate = false;
       let storageReason = "";
@@ -160,15 +160,7 @@ export const replyMentionFunction = new GameFunction({
         const now = new Date().toISOString();
 
         // Get full mention data from pending_mentions table
-        const mention = db.database
-          .prepare(
-            `
-          SELECT mention_id, author_id, author_username, text, created_at, status, referenced_tweets
-          FROM pending_mentions 
-          WHERE mention_id = ?
-        `
-          )
-          .get(args.mention_id) as any;
+        const mention = db.getPendingMentionById(args.mention_id) as any;
 
         if (mention) {
           // Referenced tweets are now automatically stored during fetch-mentions
@@ -218,23 +210,13 @@ export const replyMentionFunction = new GameFunction({
                 mention_id: mention.mention_id,
                 error: storageError.message,
               },
-              "reply_mention: Failed to store mentioned tweet as candidate"
+              "reply_mention: Failed to detect/store referenced tweet context"
             );
             // Don't fail the function since the reply was successful
           }
 
           // Update pending_mentions table
-          db.database
-            .prepare(
-              `
-            UPDATE pending_mentions 
-            SET status = 'completed', 
-                processed_at = ?,
-                worker_id = 'mentions-worker'
-            WHERE mention_id = ?
-          `
-            )
-            .run(now, args.mention_id);
+          db.markMentionProcessed(args.mention_id, now, "mentions-worker");
 
           // Add to engaged_mentions table for tracking
           db.recordMentionEngagement(args.mention_id, "reply");

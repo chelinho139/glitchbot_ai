@@ -2,7 +2,7 @@
 
 **Priority**: HIGH  
 **Response Time**: Cadence-driven (respects timing rules)  
-**Location**: `src/workers/twitter/engagement-worker.ts`
+**Location**: (planned)
 
 ## 🎯 Purpose & Responsibilities
 
@@ -33,7 +33,7 @@ The **EngagementWorker** is GlitchBot's content creation engine, responsible for
 
 ## 🔧 Core Functions
 
-### **1. `query_content_pipeline`** - Get Curated Content
+### Planned Functions
 
 **Type**: Atomic Function  
 **Purpose**: Retrieve high-quality content from DiscoveryWorker's pipeline
@@ -196,7 +196,7 @@ The **EngagementWorker** is GlitchBot's content creation engine, responsible for
 - **Trend Commentary**: Identify and explain emerging trends
 - **Community Support**: Help users understand and engage
 
-## 🔄 Cross-Worker Coordination
+## 🔄 Cross-Worker Coordination (future)
 
 ### **Content Pipeline Integration**
 
