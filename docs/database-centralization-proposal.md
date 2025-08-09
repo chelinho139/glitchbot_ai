@@ -3,7 +3,7 @@
 > **✅ STATUS: SUCCESSFULLY IMPLEMENTED**  
 > **📅 Completed:** August 3, 2025  
 > **🎯 Result:** Single DatabaseManager now handles all schema initialization  
-> **📊 Tables:** All 5 tables (pending_mentions, mention_state, engaged_tweets, rate_limits, cadence) created centrally  
+> **📊 Tables:** All core tables (pending_mentions, mention_state, suggested_tweets, engaged_mentions, engaged_quotes, rate_limits, cadence, timeline_state) created centrally  
 > **🏗️ Architecture:** Clean dependency injection with explicit database passing
 
 ## Original Problem (Now Resolved)
@@ -11,7 +11,7 @@
 GlitchBot currently has **2 separate database initialization points**:
 
 1. `GlitchBotDB.init()` - Creates main tables (4 tables)
-2. `GlobalRateLimiter.initializeDatabase()` - Creates rate_limits table (1 table)
+2. `GlobalRateLimiter` - Uses centralized `DatabaseManager` (no separate schema creation)
 
 This creates maintenance challenges and makes schema evolution difficult.
 

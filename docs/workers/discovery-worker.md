@@ -2,7 +2,7 @@
 
 **Priority**: MEDIUM  
 **Response Time**: Background (interruptible for priority)  
-**Location**: `src/workers/twitter/discovery-worker.ts`
+**Location**: (planned)
 
 ## 🎯 Purpose & Responsibilities
 

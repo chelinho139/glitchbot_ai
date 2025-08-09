@@ -20,10 +20,11 @@ This guide provides a systematic, testable approach to implementing GlitchBot's 
 - ✅ **Suggested Tweet Storage**: Automatic capture and linking of referenced content
   - ✅ **Enhanced Database Integration**: Full mention-to-content linkage system
   - ✅ **Production Ready**: Handles real Twitter interactions with 180s cycles
-- [ ] **Phase 2**: DiscoveryWorker (HIGH Priority)
-- [ ] **Phase 3**: EngagementWorker (HIGH Priority)
-- [ ] **Phase 4**: System Workers (MEDIUM Priority)
-- [ ] **Phase 5**: Integration & Coordination (HIGH Priority)
+- [x] **Phase 2**: Timeline Worker (HIGH Priority) — Implemented
+- [ ] **Phase 3**: DiscoveryWorker (HIGH Priority)
+- [ ] **Phase 4**: EngagementWorker (HIGH Priority)
+- [ ] **Phase 5**: System Workers (MEDIUM Priority)
+- [ ] **Phase 6**: Integration & Coordination (HIGH Priority)
 
 ## 🎯 **Recommended Implementation Order**
 
@@ -255,7 +256,23 @@ This implementation **significantly exceeds** the Week 1 requirements and provid
 
 ---
 
-### **🔍 Phase 2: DiscoveryWorker (Week 3-4)**
+### **🧵 Phase 2: Timeline Worker (Implemented)**
+
+Implemented capabilities:
+
+- `get_timeline`: Fetches home timeline (recommended feed) with includes
+- `get_timeline_with_suggestion`: Mixes in up to 2 recent suggested tweets from mentions (10h window), excludes self
+- `quote_tweet`: Posts quote tweet with URL, enforces 280 char limit, prevents duplicates via `engaged_quotes`, enforces 1h cadence via `cadence`
+
+Operational notes:
+
+- Topic filter enforced at worker description (AI/crypto/software/tech)
+- Timeline pagination tracked via `timeline_state`
+- Rate limits enforced via transparent client; per-endpoint dev limits ~1 req/min
+
+Next: integrate simple scoring (see `lib/ranking.ts`) and selection heuristics.
+
+### **🔍 Phase 3: DiscoveryWorker (Week 3-4)**
 
 **Why Second:**
 
@@ -374,7 +391,7 @@ This implementation **significantly exceeds** the Week 1 requirements and provid
 
 ---
 
-### **📈 Phase 3: EngagementWorker (Week 5-6)**
+### **📈 Phase 4: EngagementWorker (Week 5-6)**
 
 **Why Third:**
 
@@ -492,7 +509,7 @@ This implementation **significantly exceeds** the Week 1 requirements and provid
 
 ---
 
-### **⚙️ Phase 4: System Workers (Week 7-8)**
+### **⚙️ Phase 5: System Workers (Week 7-8)**
 
 **Why Fourth:**
 
@@ -587,7 +604,7 @@ This implementation **significantly exceeds** the Week 1 requirements and provid
 
 ---
 
-### **🔗 Phase 5: Integration & Coordination (Week 9-10)**
+### **🔗 Phase 6: Integration & Coordination (Week 9-10)**
 
 **Why Last:**
 

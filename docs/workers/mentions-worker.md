@@ -200,18 +200,13 @@ Bot: "Great question about AI safety @user! It's crucial we develop
 - Priority-based selection (oldest first currently)
 - Marks mentions as 'processing' to prevent duplicates
 
-### **✅ `reply_to_tweet`** - Post Replies
+### **✅ `reply_mention`** - Post Replies
 
 **Type**: Atomic Function  
 **Status**: ✅ **FULLY IMPLEMENTED**  
 **Purpose**: Send public replies to mentions
 
-**Current Response**:
-
-```typescript
-// Simple acknowledgment for ALL mentions
-const responseText = `Thanks for mentioning me, @${mention.author_username}! 🤖`;
-```
+Generates contextual acknowledgments referencing suggested tweet context when available, with author attribution and engagement awareness.
 
 **Features**:
 

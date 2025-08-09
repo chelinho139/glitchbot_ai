@@ -8,12 +8,14 @@ New to GlitchBot? Start here:
 
 1. **[Main README](../README.md)** - Project overview, installation, and getting started
 2. **[Mentions Worker](./workers/mentions-worker.md)** - COMPLETE: Context-aware mention processing system
-3. **[Implementation Guide](./implementation-guide.md)** - Development roadmap and current status
-4. **[Database Schema](./database-schema.md)** - Database structure and operations
+3. **[Timeline Worker](./workers/timeline-worker.md)** - COMPLETE: Timeline fetch, suggestion mix, and quote tweets
+4. **[Implementation Guide](./implementation-guide.md)** - Development roadmap and current status
+5. **[Database Schema](./database-schema.md)** - Database structure and operations
 
 ## ✅ **Current Production Status**
 
-**MentionsWorker**: ✅ **FULLY IMPLEMENTED** - Context-aware content acknowledgment system with suggested tweet integration
+- **MentionsWorker**: ✅ Fully implemented (context-aware replies + suggestion storage)
+- **Timeline Worker**: ✅ Implemented (timeline + suggestion mix + quoting with 1h cadence)
 
 ## 📖 **Core Documentation**
 
@@ -36,9 +38,10 @@ New to GlitchBot? Start here:
 
 #### **Twitter Workers**
 
-- **[Mentions Worker](./workers/mentions-worker.md)** - ✅ **COMPLETE**: Context-aware mention processing with suggested tweet integration
-- **[Discovery Worker](./workers/discovery-worker.md)** - Content discovery and scoring (planned)
-- **[Engagement Worker](./workers/engagement-worker.md)** - Quote tweets and strategic engagement (planned)
+- **[Mentions Worker](./workers/mentions-worker.md)** - ✅ Complete
+- **[Timeline Worker](./workers/timeline-worker.md)** - ✅ Complete
+- **[Discovery Worker](./workers/discovery-worker.md)** - Planned
+- **[Engagement Worker](./workers/engagement-worker.md)** - Planned
 
 ### **🤖 AI System**
 
