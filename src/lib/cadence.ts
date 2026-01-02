@@ -1,10 +1,16 @@
 import GlitchBotDB from "./db";
 import logger from "./log";
 
+// Cadence and timing constants
+const QUOTE_COOLDOWN_MS = 60 * 60 * 1000; // 1 hour
+const REPLY_COOLDOWN_MS = 60 * 60 * 1000; // 1 hour
+const SLEEP_START_HOUR_UTC = 5; // 05:00 UTC
+const SLEEP_END_HOUR_UTC = 13; // 13:00 UTC
+
 // Sleep window: 02:00–10:00 UTC-3 (05:00–13:00 UTC)
 export const isSleepTime = (d = new Date()): boolean => {
   const h = d.getUTCHours(); // UTC-3 sleep 02:00–10:00 -> UTC 05:00–13:00
-  return h >= 5 && h < 13;
+  return h >= SLEEP_START_HOUR_UTC && h < SLEEP_END_HOUR_UTC;
 };
 
 // Check if enough time has passed since last quote (1 hour)
@@ -13,20 +19,18 @@ export const canQuoteNow = (db: GlitchBotDB, now = new Date()): boolean => {
   if (!lastQuoteTs) return true;
 
   const timeSinceLastQuote = now.getTime() - new Date(lastQuoteTs).getTime();
-  const oneHourMs = 60 * 60 * 1000;
 
-  return timeSinceLastQuote >= oneHourMs;
+  return timeSinceLastQuote >= QUOTE_COOLDOWN_MS;
 };
 
-// Check if enough time has passed since last reply (1 minute)
+// Check if enough time has passed since last reply (1 hour)
 export const canReplyNow = (db: GlitchBotDB, now = new Date()): boolean => {
   const lastReplyTs = db.getCadence("last_reply_ts");
   if (!lastReplyTs) return true;
 
   const timeSinceLastReply = now.getTime() - new Date(lastReplyTs).getTime();
-  const oneMinuteMs = 60 * 1000;
 
-  return timeSinceLastReply >= oneMinuteMs;
+  return timeSinceLastReply >= REPLY_COOLDOWN_MS;
 };
 
 // Update quote timestamp after successful quote
@@ -69,7 +73,7 @@ export const checkAllGuards = (
   }
 
   if (action === "reply" && !canReplyNow(db, now)) {
-    logger.info("Reply cadence not met (< 1 minute since last reply)");
+    logger.info("Reply cadence not met (< 1 hour since last reply)");
     return false;
   }
 
@@ -88,8 +92,11 @@ export const getTimeUntilNextAction = (
     const currentHour = now.getUTCHours();
     let hoursUntilWake;
 
-    if (currentHour >= 5 && currentHour < 13) {
-      hoursUntilWake = 13 - currentHour;
+    if (
+      currentHour >= SLEEP_START_HOUR_UTC &&
+      currentHour < SLEEP_END_HOUR_UTC
+    ) {
+      hoursUntilWake = SLEEP_END_HOUR_UTC - currentHour;
     } else {
       // This shouldn't happen if isSleepTime() is correct, but just in case
       hoursUntilWake = 0;
@@ -103,7 +110,7 @@ export const getTimeUntilNextAction = (
     const lastQuoteTs = db.getCadence("last_quote_ts");
     if (!lastQuoteTs) return 0;
 
-    const nextAllowedTime = new Date(lastQuoteTs).getTime() + 60 * 60 * 1000;
+    const nextAllowedTime = new Date(lastQuoteTs).getTime() + QUOTE_COOLDOWN_MS;
     return Math.max(0, nextAllowedTime - now.getTime());
   }
 
@@ -111,7 +118,7 @@ export const getTimeUntilNextAction = (
     const lastReplyTs = db.getCadence("last_reply_ts");
     if (!lastReplyTs) return 0;
 
-    const nextAllowedTime = new Date(lastReplyTs).getTime() + 60 * 1000;
+    const nextAllowedTime = new Date(lastReplyTs).getTime() + REPLY_COOLDOWN_MS;
     return Math.max(0, nextAllowedTime - now.getTime());
   }
 
